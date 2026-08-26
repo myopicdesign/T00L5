@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Video Speed Tool</title>
+<link rel="icon" href="data:,">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+  <div class="wrap">
+
+    <h1>Video Speed Tool</h1>
+    <p class="sub">Velocizza un video mantenendo l'audio intelligibile (time-stretch, non pitch-shift). Elaborazione locale nel browser, nessun upload su server.</p>
+
+    <div id="status" class="status">Motore non caricato</div>
+
+    <!-- Step 1: file -->
+    <section class="card">
+      <label class="field-label" for="fileInput">1. Seleziona un file video</label>
+      <input type="file" id="fileInput" accept="video/*">
+      <p class="hint" id="fileInfo"></p>
+    </section>
+
+    <!-- Step 2: options (disabled until a file is chosen) -->
+    <section class="card" id="optionsCard">
+      <label class="field-label" for="speedInput">2. Velocità</label>
+      <div class="speed-row">
+        <input type="range" id="speedSlider" min="0.25" max="4" step="0.05" value="1.5" disabled>
+        <input type="number" id="speedInput" min="0.25" max="4" step="0.05" value="1.5" disabled>
+        <span>×</span>
+      </div>
+
+      <div class="row two-col">
+        <label class="checkbox-label">
+          <input type="checkbox" id="keepAudio" checked disabled>
+          Mantieni audio (time-stretch naturale)
+        </label>
+
+        <label class="select-label">
+          Qualità:
+          <select id="qualitySelect" disabled>
+            <option value="18">Massima</option>
+            <option value="20" selected>Alta</option>
+            <option value="23">Standard</option>
+          </select>
+        </label>
+      </div>
+
+      <button id="processBtn" disabled>Elabora video</button>
+
+      <div id="progressWrap" class="progress-wrap" hidden>
+        <div class="progress-bar"><div id="progressFill" class="progress-fill"></div></div>
+        <p id="progressLabel" class="hint"></p>
+      </div>
+
+      <p id="errorBox" class="error" hidden></p>
+    </section>
+
+    <!-- Step 3: preview / download -->
+    <section class="card" id="resultCard" hidden>
+      <label class="field-label">3. Risultato</label>
+      <video id="resultVideo" controls></video>
+      <a id="downloadLink" class="download-btn" download>Scarica video</a>
+      <p class="hint" id="downloadMeta"></p>
+    </section>
+
+  </div>
+
+  <script src="vendor/ffmpeg/ffmpeg.js"></script>
+  <script src="vendor/util/index.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
