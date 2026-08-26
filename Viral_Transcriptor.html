@@ -583,72 +583,69 @@ downloadSrt.addEventListener('click', () => {
   downloadBlob(srt, 'trascrizione.srt', 'text/plain');
 });
 
-// ─── STRUCTURE ANALYSIS ENGINE ────────────────────────────────────────────────
+// ─── STRUCTURE ANALYSIS ENGINE v3 ─────────────────────────────────────────────
+// Struttura unica universale:
+// Hook → Introduzione → Problema → Corpo → Bridge → Risoluzione → CTA → Outro
+// Il motore rileva solo le sezioni presenti, senza richiedere che ci siano tutte.
 
 const SECTION_META = {
-  hook:    { label: 'Hook',         emoji: '🪝', cls: 'sec-hook'    },
-  intro:   { label: 'Introduzione', emoji: '👋', cls: 'sec-intro'   },
-  body:    { label: 'Corpo',        emoji: '📝', cls: 'sec-body'    },
-  bridge:  { label: 'Bridge',       emoji: '🔗', cls: 'sec-bridge'  },
-  cta:     { label: 'CTA',          emoji: '📣', cls: 'sec-cta'     },
-  outro:   { label: 'Outro',        emoji: '👏', cls: 'sec-outro'   },
-  unknown: { label: 'Sezione',      emoji: '📄', cls: 'sec-unknown' },
+  hook:       { label: 'Hook',          emoji: '🪝', cls: 'sec-hook'   },
+  intro:      { label: 'Introduzione',  emoji: '👋', cls: 'sec-intro'  },
+  problem:    { label: 'Problema',      emoji: '❓', cls: 'sec-bridge' },
+  body:       { label: 'Corpo',         emoji: '📝', cls: 'sec-body'   },
+  bridge:     { label: 'Bridge',        emoji: '🔗', cls: 'sec-bridge' },
+  resolution: { label: 'Risoluzione',   emoji: '✅', cls: 'sec-body'   },
+  cta:        { label: 'CTA',           emoji: '📣', cls: 'sec-cta'    },
+  outro:      { label: 'Outro',         emoji: '👏', cls: 'sec-outro'  },
+  unknown:    { label: 'Sezione',       emoji: '📄', cls: 'sec-unknown'},
 };
 
-// Keyword patterns per lingua (IT + EN)
-const PATTERNS = {
+// Sequenza attesa — usata per vincoli di ordine e boost posizionali
+const SEQUENCE = ['hook','intro','problem','body','bridge','resolution','cta','outro'];
+
+// Hook non può superare il 15% del video
+const HOOK_MAX_POS = 0.15;
+
+// Definizione sezioni: finestra posizionale + pattern IT/EN
+const SECTIONS = {
   hook: {
+    pos: { start: 0, end: 0.20 },
     strong: [
       /\bimmagina\b/i, /\bimmaginate\b/i, /\bhai mai\b/i, /\bsapevi che\b/i,
       /\blo sapevi\b/i, /\bcosa succederebbe\b/i, /\bcosa faresti\b/i,
       /\bdid you know\b/i, /\bimagine\b/i, /\bwhat if\b/i, /\bhave you ever\b/i,
-      /\bwould you believe\b/i, /\bguess what\b/i,
+      /\bwould you believe\b/i, /\bguess what\b/i, /\baspetta\b/i, /\bwait\b/i,
     ],
-    weak: [
-      /\bperché\b/i, /\bcome mai\b/i, /\bquesto è\b/i, /\bstai guardando\b/i,
-      /\bbenvenuti?\b/i, /\bwelcome\b/i, /\btoday\b/i, /\boggi\b/i,
-    ],
+    weak: [/\bperché\b/i, /\bcome mai\b/i, /\boggi\b/i, /\btoday\b/i, /\bstai guardando\b/i],
   },
   intro: {
+    pos: { start: 0.03, end: 0.30 },
     strong: [
       /\bmi chiamo\b/i, /\bsono [A-Z]/i, /\bin questo video\b/i,
       /\bparleremo di\b/i, /\bvi parlerò di\b/i, /\bvedremo come\b/i,
       /\bin this video\b/i, /\bmy name is\b/i, /\bi'm going to\b/i,
       /\btoday (i|we|you)'?ll?\b/i, /\bthis video is about\b/i,
     ],
-    weak: [
-      /\bcominciamo\b/i, /\biniziamo\b/i, /\blet's start\b/i, /\blet's begin\b/i,
-      /\bprima di tutto\b/i, /\bfirst of all\b/i, /\banzitutto\b/i,
-    ],
+    weak: [/\bcominciamo\b/i, /\biniziamo\b/i, /\blet's start\b/i, /\bprima di tutto\b/i, /\bfirst of all\b/i],
   },
-  cta: {
+  problem: {
+    pos: { start: 0.08, end: 0.45 },
     strong: [
-      /\biscriviti\b/i, /\biscrivetevi\b/i, /\blike\b/i, /\bmetti mi piace\b/i,
-      /\bcondividi\b/i, /\bcommenta\b/i, /\blascia un commento\b/i,
-      /\bseguimi\b/i, /\bseguici\b/i, /\bnotifich\b/i, /\bcampanella\b/i,
-      /\bsubscribe\b/i, /\bfollow\b/i, /\bshare\b/i, /\bleave a comment\b/i,
-      /\bturn on\b/i, /\bbell icon\b/i, /\bhit the\b/i,
-      /\blink in bio\b/i, /\blink in descrizione\b/i, /\btrovi il link\b/i,
+      /\bil problema\b/i, /\bthe problem\b/i, /\bl[' ]?issue\b/i,
+      /\bspesso capita\b/i, /\bmolti di voi\b/i, /\bse hai mai\b/i,
+      /\bif you('ve)? ever\b/i, /\bpurtroppo\b/i, /\bunfortunately\b/i,
+      /\bla sfida\b/i, /\bthe challenge\b/i, /\bnon funziona\b/i,
+      /\bdi solito\b/i, /\btipicamente\b/i, /\bmost people\b/i,
     ],
-    weak: [
-      /\bfammi sapere\b/i, /\blet me know\b/i, /\bscrivimi\b/i,
-      /\bdimmi\b/i, /\btell me\b/i,
-    ],
+    weak: [/\bperché\b/i, /\bwhy\b/i, /\bma\b/i, /\bbut\b/i, /\bspesso\b/i, /\boften\b/i],
   },
-  outro: {
-    strong: [
-      /\bci vediamo\b/i, /\balla prossima\b/i, /\ba presto\b/i,
-      /\bgrazie per aver guardato\b/i, /\bgrazie mille\b/i,
-      /\bsee you (next|in the)\b/i, /\bthat'?s all\b/i, /\bthat'?s it\b/i,
-      /\bthanks for watching\b/i, /\btake care\b/i, /\bbye\b/i, /\baddio\b/i,
-      /\barrivederci\b/i, /\bciao ciao\b/i,
-    ],
-    weak: [
-      /\bin conclusione\b/i, /\bper concludere\b/i, /\bin conclusion\b/i,
-      /\bfinally\b/i, /\bper finire\b/i,
-    ],
+  body: {
+    pos: { start: 0.20, end: 0.80 },
+    strong: [], weak: [],
+    isDefault: true, // fallback zona centrale
   },
   bridge: {
+    pos: { start: 0.15, end: 0.85 },
     strong: [
       /\bdetto questo\b/i, /\bparlando di\b/i, /\btornando a\b/i,
       /\bpassando a\b/i, /\badesso vediamo\b/i, /\bora vediamo\b/i,
@@ -656,20 +653,82 @@ const PATTERNS = {
       /\bnow let'?s\b/i, /\bthat brings us\b/i, /\bon that note\b/i,
       /\bcomunque\b/i, /\bdunque\b/i, /\bperò\b/i, /\bhowever\b/i,
     ],
-    weak: [
-      /\binoltre\b/i, /\banche\b/i, /\bmoreover\b/i, /\badditionally\b/i,
+    weak: [/\binoltre\b/i, /\bmoreover\b/i, /\badditionally\b/i, /\banche\b/i],
+  },
+  resolution: {
+    pos: { start: 0.40, end: 0.88 },
+    strong: [
+      /\bla soluzione\b/i, /\bthe solution\b/i, /\bcome fare\b/i, /\bhow to\b/i,
+      /\bil trucco\b/i, /\bthe trick\b/i, /\bbasta\b/i, /\bsimply\b/i,
+      /\bfinalmente\b/i, /\bfinally\b/i, /\bricapitolando\b/i, /\bto summarize\b/i,
+      /\bin sintesi\b/i, /\bto recap\b/i, /\bquello che ho imparato\b/i,
+      /\bwhat i learned\b/i, /\bfunziona così\b/i, /\bhere's how\b/i,
+      /\bda quel momento\b/i, /\bfrom that moment\b/i, /\bce la feci\b/i,
     ],
+    weak: [/\bquindi\b/i, /\bso\b/i, /\balla fine\b/i, /\bin the end\b/i, /\bdopo\b/i, /\bafter\b/i],
+  },
+  cta: {
+    pos: { start: 0.55, end: 1.0 },
+    strong: [
+      /\biscriviti\b/i, /\biscrivetevi\b/i, /\bmetti mi piace\b/i,
+      /\bcondividi\b/i, /\bcommenta\b/i, /\blascia un commento\b/i,
+      /\bseguimi\b/i, /\bseguici\b/i, /\bnotifich\b/i, /\bcampanella\b/i,
+      /\bsubscribe\b/i, /\bfollow\b/i, /\bshare\b/i, /\bleave a comment\b/i,
+      /\bturn on\b/i, /\bbell icon\b/i, /\bhit the\b/i,
+      /\blink in bio\b/i, /\blink in descrizione\b/i, /\btrovi il link\b/i,
+      /\bclicca\b/i, /\bclick\b/i, /\blike\b/i,
+    ],
+    weak: [/\bfammi sapere\b/i, /\blet me know\b/i, /\bscrivimi\b/i, /\btell me\b/i, /\bdimmi\b/i],
+  },
+  outro: {
+    pos: { start: 0.75, end: 1.0 },
+    strong: [
+      /\bci vediamo\b/i, /\balla prossima\b/i, /\ba presto\b/i,
+      /\bgrazie per aver guardato\b/i, /\bgrazie mille\b/i,
+      /\bsee you (next|in the)\b/i, /\bthat'?s all\b/i, /\bthat'?s it\b/i,
+      /\bthanks for watching\b/i, /\btake care\b/i, /\bbye\b/i,
+      /\barrivederci\b/i, /\bciao ciao\b/i, /\baddio\b/i,
+    ],
+    weak: [/\bin conclusione\b/i, /\bper concludere\b/i, /\bin conclusion\b/i, /\bper finire\b/i, /\bfinally\b/i],
   },
 };
 
-function scoreChunk(text) {
-  const scores = { hook: 0, intro: 0, cta: 0, outro: 0, bridge: 0 };
-  for (const [section, { strong, weak }] of Object.entries(PATTERNS)) {
-    for (const re of strong) if (re.test(text)) scores[section] += 3;
-    for (const re of weak)   if (re.test(text)) scores[section] += 1;
+// ─── SCORING ──────────────────────────────────────────────────────────────────
+
+function scoreChunk(text, pos) {
+  const scores = {};
+  for (const [secId, secDef] of Object.entries(SECTIONS)) {
+    if (secDef.isDefault) continue;
+    let s = 0;
+    for (const re of (secDef.strong || [])) if (re.test(text)) s += 3;
+    for (const re of (secDef.weak   || [])) if (re.test(text)) s += 1;
+    // Bonus/malus posizionale: +2 se nella finestra giusta, -2 se fuori
+    const inWindow = pos >= secDef.pos.start && pos <= secDef.pos.end;
+    if (s > 0) s += inWindow ? 2 : -2;
+    scores[secId] = Math.max(0, s);
   }
   return scores;
 }
+
+// ─── VINCOLI DI SEQUENZA ──────────────────────────────────────────────────────
+// Un chunk non può essere classificato come una sezione che nella sequenza
+// viene PRIMA di una sezione già incontrata in precedenza.
+
+function applySequenceConstraints(labeled) {
+  let maxSeqSeen = -1; // indice massimo della sequenza già incontrato
+  return labeled.map(item => {
+    const idx = SEQUENCE.indexOf(item.type);
+    if (idx === -1) return item; // 'body' non è in sequenza numerata, passa sempre
+    if (idx >= maxSeqSeen) {
+      maxSeqSeen = idx;
+      return item;
+    }
+    // Regressione: questo chunk dice di essere una sezione già passata → body
+    return { ...item, type: 'body', confidence: 20 };
+  });
+}
+
+// ─── MERGE CONSECUTIVI ────────────────────────────────────────────────────────
 
 function mergeConsecutive(labeled) {
   if (!labeled.length) return labeled;
@@ -686,40 +745,51 @@ function mergeConsecutive(labeled) {
   return merged;
 }
 
+// ─── ANALISI PRINCIPALE ───────────────────────────────────────────────────────
+
 function analyzeStructure(chunks) {
   const total = chunks.length;
   if (total === 0) return [];
 
   const labeled = chunks.map((chunk, i) => {
     const text = chunk.text.trim();
-    const pos = i / total; // 0 = inizio, 1 = fine
-    const scores = scoreChunk(text);
+    const pos  = i / total;
 
-    // Boost positional: hook e intro early, cta e outro late
-    if (pos < 0.12) { scores.hook += 4; scores.intro += 2; }
-    else if (pos < 0.25) { scores.intro += 3; scores.hook += 1; }
-    else if (pos > 0.88) { scores.outro += 4; scores.cta += 3; }
-    else if (pos > 0.75) { scores.cta += 2; scores.outro += 1; }
-    else { scores.body = 2; } // default mid = body
+    const scores = scoreChunk(text, pos);
+    const best   = Object.entries(scores).reduce((a, b) => b[1] > a[1] ? b : a, ['', -1]);
 
-    const best = Object.entries(scores).reduce((a, b) => b[1] > a[1] ? b : a);
-    const type = best[1] > 0 ? best[0] : 'body';
-    const confidence = Math.min(100, Math.round((best[1] / 8) * 100));
+    let type, confidence;
+
+    if (best[1] <= 0) {
+      // Nessun segnale: hook se siamo all'inizio, body altrimenti
+      type = pos < HOOK_MAX_POS ? 'hook' : 'body';
+      confidence = 20;
+    } else {
+      type = best[0];
+      confidence = Math.min(100, Math.round((best[1] / 8) * 100));
+    }
+
+    // Hook non può andare oltre HOOK_MAX_POS
+    if (type === 'hook' && pos > HOOK_MAX_POS) {
+      type = 'intro';
+      confidence = 20;
+    }
+
+    // Zona centrale senza segnale forte → body
+    if (pos >= 0.25 && pos <= 0.75 && confidence < 30
+        && type !== 'bridge' && type !== 'problem' && type !== 'resolution') {
+      type = 'body';
+      confidence = 35;
+    }
 
     return { type, text, confidence, start: chunk.timestamp?.[0] };
   });
 
-  // Post-processing: forza body per i segmenti centrali senza match forte
-  const processed = labeled.map((item, i) => {
-    const pos = i / total;
-    if (pos >= 0.25 && pos <= 0.75 && item.type !== 'bridge' && item.confidence < 30) {
-      return { ...item, type: 'body', confidence: 40 };
-    }
-    return item;
-  });
-
-  return mergeConsecutive(processed);
+  const constrained = applySequenceConstraints(labeled);
+  return mergeConsecutive(constrained);
 }
+
+// ─── RENDER ───────────────────────────────────────────────────────────────────
 
 function renderStructure(sections) {
   const blocksEl = document.getElementById('structureBlocks');
@@ -727,14 +797,13 @@ function renderStructure(sections) {
   blocksEl.innerHTML = '';
   legendEl.innerHTML = '';
 
-  // Legend
-  const usedTypes = [...new Set(sections.map(s => s.type))];
+  // Legenda nell'ordine della sequenza canonica, solo le sezioni presenti
+  const usedTypes = SEQUENCE.filter(t => sections.some(s => s.type === t));
   usedTypes.forEach(type => {
     const m = SECTION_META[type] || SECTION_META.unknown;
     const li = document.createElement('span');
     li.className = 'legend-item';
-    li.style.background = getComputedStyle(document.documentElement)
-      .getPropertyValue('--border') || '#2a2e38';
+    li.style.cssText = 'background:#2a2e38;color:var(--text)';
     li.textContent = `${m.emoji} ${m.label}`;
     legendEl.appendChild(li);
   });
@@ -743,9 +812,7 @@ function renderStructure(sections) {
     const m = SECTION_META[sec.type] || SECTION_META.unknown;
     const div = document.createElement('div');
     div.className = `section-block ${m.cls}`;
-
     const confLabel = sec.confidence >= 60 ? 'alta' : sec.confidence >= 30 ? 'media' : 'bassa';
-
     div.innerHTML = `
       <div class="section-label">
         <span class="badge">${m.emoji} ${m.label}</span>
@@ -757,9 +824,11 @@ function renderStructure(sections) {
   });
 }
 
-const analyzeBtn = document.getElementById('analyzeBtn');
-const structurePanel = document.getElementById('structure-panel');
-const copyStructureBtn = document.getElementById('copyStructureBtn');
+// ─── EVENTI ───────────────────────────────────────────────────────────────────
+
+const analyzeBtn           = document.getElementById('analyzeBtn');
+const structurePanel       = document.getElementById('structure-panel');
+const copyStructureBtn     = document.getElementById('copyStructureBtn');
 const downloadStructureBtn = document.getElementById('downloadStructureBtn');
 
 let currentStructure = null;
