@@ -1,0 +1,1841 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Sketch Animator</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=DM+Sans:wght@300;400;500&display=swap');
+
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --bg: #1a1a1a;
+    --surface: #242424;
+    --surface2: #2e2e2e;
+    --border: #383838;
+    --text: #e8e8e8;
+    --muted: #888;
+    --accent: #f0c040;
+    --accent2: #60c0f0;
+    --danger: #f06060;
+    --radius: 8px;
+    --panel: 240px;
+  }
+
+  html, body {
+    height: 100%;
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'DM Sans', sans-serif;
+    overflow: hidden;
+    user-select: none;
+  }
+
+  #app {
+    display: flex;
+    height: 100vh;
+    width: 100vw;
+  }
+
+  /* ── SIDEBAR ── */
+  #sidebar {
+    width: var(--panel);
+    flex-shrink: 0;
+    background: var(--surface);
+    border-right: 1px solid var(--border);
+    display: flex;
+    flex-direction: column;
+    gap: 0;
+    overflow-y: auto;
+    overflow-x: hidden;
+  }
+
+  .logo {
+    padding: 18px 16px 12px;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .logo svg { flex-shrink: 0; }
+  .logo-text { font-family: 'DM Mono', monospace; font-size: 13px; font-weight: 500; letter-spacing: 0.04em; color: var(--accent); }
+  .logo-sub { font-size: 10px; color: var(--muted); letter-spacing: 0.08em; text-transform: uppercase; }
+
+  .section {
+    padding: 14px 16px;
+    border-bottom: 1px solid var(--border);
+  }
+  .section-label {
+    font-size: 9px;
+    font-weight: 500;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--muted);
+    margin-bottom: 10px;
+  }
+
+  /* Stroke size */
+  .size-display {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 8px;
+  }
+  .size-val {
+    font-family: 'DM Mono', monospace;
+    font-size: 22px;
+    font-weight: 400;
+    color: var(--text);
+    line-height: 1;
+  }
+  .size-unit { font-size: 11px; color: var(--muted); }
+  .size-preview {
+    width: 44px; height: 44px;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+  }
+  .size-dot {
+    background: #fff;
+    border-radius: 50%;
+    transition: width 0.1s, height 0.1s;
+  }
+  input[type=range] {
+    -webkit-appearance: none;
+    width: 100%;
+    height: 3px;
+    background: var(--border);
+    border-radius: 2px;
+    outline: none;
+    cursor: pointer;
+    margin-top: 4px;
+  }
+  input[type=range]::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    width: 14px; height: 14px;
+    background: var(--accent);
+    border-radius: 50%;
+    cursor: pointer;
+  }
+
+  /* Color */
+  .color-row {
+    display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 8px;
+  }
+  .swatch {
+    width: 24px; height: 24px;
+    border-radius: 50%;
+    cursor: pointer;
+    border: 2px solid transparent;
+    transition: border-color 0.15s, transform 0.15s;
+  }
+  .swatch:hover { transform: scale(1.15); }
+  .swatch.active { border-color: #fff; }
+  .custom-color-wrap {
+    display: flex; align-items: center; gap: 8px;
+  }
+  .custom-color-wrap label { font-size: 11px; color: var(--muted); }
+  input[type=color] {
+    -webkit-appearance: none;
+    width: 32px; height: 32px;
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    background: none;
+    cursor: pointer;
+    padding: 2px;
+  }
+  input[type=color]::-webkit-color-swatch-wrapper { padding: 0; }
+  input[type=color]::-webkit-color-swatch { border: none; border-radius: 3px; }
+
+  /* Toggle */
+  .toggle-row {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 6px 0;
+  }
+  .toggle-label { font-size: 12px; color: var(--text); }
+  .toggle-desc { font-size: 10px; color: var(--muted); margin-top: 1px; }
+  .toggle-wrap { display: flex; flex-direction: column; }
+  .toggle {
+    position: relative;
+    width: 36px; height: 20px;
+    cursor: pointer;
+  }
+  .toggle input { opacity: 0; width: 0; height: 0; }
+  .toggle-track {
+    position: absolute; inset: 0;
+    background: var(--border);
+    border-radius: 10px;
+    transition: background 0.2s;
+  }
+  .toggle-thumb {
+    position: absolute;
+    top: 3px; left: 3px;
+    width: 14px; height: 14px;
+    background: var(--muted);
+    border-radius: 50%;
+    transition: transform 0.2s, background 0.2s;
+  }
+  .toggle input:checked ~ .toggle-track { background: var(--accent); }
+  .toggle input:checked ~ .toggle-thumb { transform: translateX(16px); background: #1a1200; }
+
+  /* Duration controls */
+  .dur-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+  .dur-field label { font-size: 10px; color: var(--muted); display: block; margin-bottom: 4px; }
+  .dur-field input[type=number] {
+    width: 100%;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    color: var(--text);
+    font-family: 'DM Mono', monospace;
+    font-size: 14px;
+    padding: 6px 8px;
+    outline: none;
+    transition: border-color 0.15s;
+  }
+  .dur-field input[type=number]:focus { border-color: var(--accent); }
+
+  /* Buttons */
+  .btn-group { display: flex; flex-direction: column; gap: 6px; }
+  .btn {
+    width: 100%;
+    padding: 10px 12px;
+    border-radius: var(--radius);
+    border: none;
+    font-family: 'DM Sans', sans-serif;
+    font-size: 12px;
+    font-weight: 500;
+    letter-spacing: 0.03em;
+    cursor: pointer;
+    transition: opacity 0.15s, transform 0.1s;
+    display: flex; align-items: center; justify-content: center; gap: 6px;
+  }
+  .btn:active { transform: scale(0.97); }
+  .btn:disabled { opacity: 0.35; cursor: not-allowed; transform: none; }
+  .btn-primary { background: var(--accent); color: #1a1200; }
+  .btn-secondary { background: var(--surface2); color: var(--text); border: 1px solid var(--border); }
+  .btn-danger { background: transparent; color: var(--danger); border: 1px solid var(--danger); }
+  .btn-accent2 { background: var(--accent2); color: #001a2a; }
+
+  /* Status */
+  #status-bar {
+    margin-top: auto;
+    padding: 10px 16px;
+    border-top: 1px solid var(--border);
+    font-family: 'DM Mono', monospace;
+    font-size: 10px;
+    color: var(--muted);
+    min-height: 36px;
+    display: flex; align-items: center;
+  }
+  #status-bar.busy { color: var(--accent2); }
+  #status-bar.done { color: #60f060; }
+  #status-bar.err { color: var(--danger); }
+
+  /* ── CANVAS AREA ── */
+  #canvas-wrap {
+    flex: 1;
+    position: relative;
+    overflow: hidden;
+    background:
+      radial-gradient(ellipse at 20% 20%, rgba(240,192,64,0.03) 0%, transparent 60%),
+      radial-gradient(ellipse at 80% 80%, rgba(96,192,240,0.03) 0%, transparent 60%),
+      #1a1a1a;
+  }
+
+  /* subtle grid */
+  #canvas-wrap::before {
+    content: '';
+    position: absolute; inset: 0;
+    background-image:
+      linear-gradient(rgba(255,255,255,0.015) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(255,255,255,0.015) 1px, transparent 1px);
+    background-size: 32px 32px;
+    pointer-events: none;
+  }
+
+  #draw-canvas, #preview-canvas {
+    position: absolute;
+    top: 0; left: 0;
+    cursor: crosshair;
+  }
+  #draw-canvas {
+    transition: opacity 0.2s;
+  }
+  #preview-canvas {
+    pointer-events: none;
+  }
+
+  /* toolbar top-right */
+  #canvas-toolbar {
+    position: absolute;
+    top: 14px; right: 16px;
+    display: flex; gap: 8px;
+    align-items: center;
+  }
+  .icon-btn {
+    width: 32px; height: 32px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    display: flex; align-items: center; justify-content: center;
+    cursor: pointer;
+    color: var(--muted);
+    transition: color 0.15s, border-color 0.15s;
+  }
+  .icon-btn:hover { color: var(--text); border-color: var(--accent); }
+  .icon-btn { transition: color 0.15s, border-color 0.15s, opacity 0.2s; }
+
+  /* mode badge */
+  #mode-badge {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 20px;
+    font-family: 'DM Mono', monospace;
+    font-size: 10px;
+    color: var(--muted);
+    padding: 4px 10px;
+    letter-spacing: 0.08em;
+  }
+
+  /* progress bar for export */
+  #export-progress {
+    position: absolute;
+    bottom: 0; left: 0; right: 0;
+    height: 3px;
+    background: var(--border);
+    display: none;
+  }
+  #export-progress-bar {
+    height: 100%;
+    background: var(--accent2);
+    width: 0%;
+    transition: width 0.1s;
+  }
+
+  /* preview overlay for animation */
+  #preview-canvas { opacity: 0; transition: opacity 0.2s; }
+  #preview-canvas.visible { opacity: 1; }
+
+  /* wobble overlay - always on top, always visible when wobble enabled */
+  #wobble-canvas {
+    position: absolute;
+    top: 0; left: 0;
+    pointer-events: none;
+    opacity: 1;
+  }
+
+  /* download link (hidden) */
+  #dl-link { display: none; }
+
+  /* background image canvas */
+  #bg-canvas {
+    position: absolute;
+    top: 0; left: 0;
+    pointer-events: none;
+  }
+
+  /* bg image upload button */
+  .btn-upload {
+    width: 100%;
+    padding: 10px 12px;
+    border-radius: var(--radius);
+    border: 1px dashed var(--border);
+    background: transparent;
+    color: var(--muted);
+    font-family: 'DM Sans', sans-serif;
+    font-size: 12px;
+    font-weight: 500;
+    letter-spacing: 0.03em;
+    cursor: pointer;
+    transition: color 0.15s, border-color 0.15s;
+    display: flex; align-items: center; justify-content: center; gap: 6px;
+  }
+  .btn-upload:hover { color: var(--text); border-color: var(--accent); }
+  .btn-upload.has-image { color: var(--accent); border-color: var(--accent); border-style: solid; }
+
+  .opacity-row {
+    display: flex; align-items: center; justify-content: space-between;
+    margin-top: 8px; margin-bottom: 4px;
+  }
+  .opacity-label { font-size: 11px; color: var(--muted); }
+  .opacity-val { font-family: 'DM Mono', monospace; font-size: 12px; color: var(--text); }
+
+  #bg-file-input { display: none; }
+
+  /* bg transform overlay */
+  #bg-overlay {
+    position: absolute;
+    top: 0; left: 0;
+    width: 100%; height: 100%;
+    pointer-events: none;
+    display: none;
+  }
+  #bg-overlay.active { pointer-events: all; display: block; }
+  #bg-box {
+    position: absolute;
+    border: 1.5px dashed rgba(240,192,64,0.7);
+    box-sizing: border-box;
+    cursor: move;
+  }
+  .bg-handle {
+    position: absolute;
+    width: 10px; height: 10px;
+    background: var(--accent);
+    border: 1.5px solid #1a1200;
+    border-radius: 2px;
+    box-sizing: border-box;
+  }
+  .bg-handle.nw { top:-5px; left:-5px; cursor: nw-resize; }
+  .bg-handle.ne { top:-5px; right:-5px; cursor: ne-resize; }
+  .bg-handle.sw { bottom:-5px; left:-5px; cursor: sw-resize; }
+  .bg-handle.se { bottom:-5px; right:-5px; cursor: se-resize; }
+  .bg-handle.n  { top:-5px; left:calc(50% - 5px); cursor: n-resize; }
+  .bg-handle.s  { bottom:-5px; left:calc(50% - 5px); cursor: s-resize; }
+  .bg-handle.w  { top:calc(50% - 5px); left:-5px; cursor: w-resize; }
+  .bg-handle.e  { top:calc(50% - 5px); right:-5px; cursor: e-resize; }
+  .bg-handle.rot {
+    top: -28px; left: calc(50% - 5px);
+    cursor: grab;
+    background: var(--accent2);
+    border-radius: 50%;
+  }
+  #bg-rot-line {
+    position: absolute;
+    top: -22px; left: calc(50%);
+    width: 1px; height: 16px;
+    background: rgba(96,192,240,0.5);
+    transform-origin: top center;
+  }
+  /* toggle edit mode btn */
+  #btn-bg-edit {
+    display: none;
+    width: 100%;
+    margin-top: 6px;
+    padding: 7px 10px;
+    border-radius: var(--radius);
+    border: 1px solid var(--border);
+    background: transparent;
+    color: var(--muted);
+    font-family: 'DM Sans', sans-serif;
+    font-size: 11px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: color 0.15s, border-color 0.15s, background 0.15s;
+    align-items: center; justify-content: center; gap: 5px;
+  }
+  #btn-bg-edit:hover { color: var(--text); border-color: var(--accent); }
+  #btn-bg-edit.editing { color: var(--accent); border-color: var(--accent); background: rgba(240,192,64,0.08); }
+
+  /* spinner */
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .spin { animation: spin 0.8s linear infinite; display: inline-block; }
+
+  /* responsive sidebar */
+  @media (max-width: 640px) {
+    :root { --panel: 190px; }
+    .size-val { font-size: 18px; }
+  }
+</style>
+</head>
+<body>
+<div id="app">
+
+  <!-- ── SIDEBAR ── -->
+  <div id="sidebar">
+
+    <div class="logo">
+      <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
+        <path d="M4 16 Q6 8 10 4 Q14 8 16 16" stroke="#f0c040" stroke-width="1.8" fill="none" stroke-linecap="round"/>
+        <path d="M3 14 Q7 10 10 6 Q13 10 17 14" stroke="#60c0f0" stroke-width="1" fill="none" stroke-linecap="round" opacity="0.5"/>
+      </svg>
+      <div>
+        <div class="logo-text">SKETCH</div>
+        <div class="logo-sub">Animator</div>
+      </div>
+    </div>
+
+    <!-- Pennello -->
+    <div class="section">
+      <div class="section-label">Pennello</div>
+      <div class="size-display">
+        <div>
+          <span class="size-val" id="size-label">6</span>
+          <span class="size-unit">px</span>
+        </div>
+        <div class="size-preview">
+          <div class="size-dot" id="size-dot" style="width:6px;height:6px;"></div>
+        </div>
+      </div>
+      <input type="range" id="size-range" min="1" max="40" value="6" step="1">
+    </div>
+
+    <!-- Colore -->
+    <div class="section">
+      <div class="section-label">Colore</div>
+      <div class="color-row" id="swatches">
+        <div class="swatch active" style="background:#ffffff" data-color="#ffffff"></div>
+        <div class="swatch" style="background:#f0c040" data-color="#f0c040"></div>
+        <div class="swatch" style="background:#60c0f0" data-color="#60c0f0"></div>
+        <div class="swatch" style="background:#f06090" data-color="#f06090"></div>
+        <div class="swatch" style="background:#60f090" data-color="#60f090"></div>
+        <div class="swatch" style="background:#f09060" data-color="#f09060"></div>
+        <div class="swatch" style="background:#c060f0" data-color="#c060f0"></div>
+        <div class="swatch" style="background:#000000" data-color="#000000"></div>
+      </div>
+      <div class="custom-color-wrap">
+        <label>Custom</label>
+        <input type="color" id="custom-color" value="#ffffff">
+      </div>
+    </div>
+
+    <!-- Effetti -->
+    <div class="section">
+      <div class="section-label">Effetti</div>
+      <div class="toggle-row">
+        <div class="toggle-wrap">
+          <span class="toggle-label">Tremolio</span>
+          <span class="toggle-desc">Wobble animato</span>
+        </div>
+        <label class="toggle">
+          <input type="checkbox" id="toggle-wobble" checked>
+          <span class="toggle-track"></span>
+          <span class="toggle-thumb"></span>
+        </label>
+      </div>
+      <div class="toggle-row">
+        <div class="toggle-wrap">
+          <span class="toggle-label">Anteprima live</span>
+          <span class="toggle-desc">Mostra animazione</span>
+        </div>
+        <label class="toggle">
+          <input type="checkbox" id="toggle-preview">
+          <span class="toggle-track"></span>
+          <span class="toggle-thumb"></span>
+        </label>
+      </div>
+      <div class="toggle-row">
+        <div class="toggle-wrap">
+          <span class="toggle-label">Trim path</span>
+          <span class="toggle-desc">Disegna e poi cancella</span>
+        </div>
+        <label class="toggle">
+          <input type="checkbox" id="toggle-trim">
+          <span class="toggle-track"></span>
+          <span class="toggle-thumb"></span>
+        </label>
+      </div>
+    </div>
+
+    <!-- Durata totale -->
+    <div class="section">
+      <div class="section-label">Durata animazione</div>
+      <div class="dur-grid">
+        <div class="dur-field">
+          <label>Draw-in (sec)</label>
+          <input type="number" id="total-duration" min="0.5" max="60" value="5" step="0.5">
+        </div>
+        <div class="dur-field">
+          <label>Hold + tremolio (sec)</label>
+          <input type="number" id="hold-duration" min="0" max="60" value="5" step="0.5">
+        </div>
+      </div>
+      <div style="font-size:10px;color:var(--muted);margin-top:6px">Draw-in = disegno progressivo · Hold = fermo con tremolio</div>
+    </div>
+
+    <!-- Intensità tremolio -->
+    <div class="section">
+      <div class="section-label">Intensità tremolio</div>
+      <div class="size-display" style="margin-bottom:6px">
+        <span style="font-size:11px;color:var(--muted)">Nessuno</span>
+        <span class="size-val" id="wobble-strength-label" style="font-size:18px">3</span>
+        <span style="font-size:11px;color:var(--muted)">Forte</span>
+      </div>
+      <input type="range" id="wobble-strength-range" min="0" max="10" value="3" step="1">
+    </div>
+
+    <!-- Immagine sfondo -->
+    <div class="section">
+      <div class="section-label">Immagine sfondo</div>
+      <input type="file" id="bg-file-input" accept="image/*">
+      <button class="btn-upload" id="btn-bg-upload">
+        <svg width="12" height="12" viewBox="0 0 12 12" fill="none"><path d="M6 1v7M3 4l3-3 3 3M1 10h10" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        Carica immagine
+      </button>
+      <div class="opacity-row" id="bg-opacity-row" style="display:none">
+        <span class="opacity-label">Trasparenza</span>
+        <span class="opacity-val" id="bg-opacity-val">30%</span>
+      </div>
+      <input type="range" id="bg-opacity-range" min="5" max="100" value="30" step="5" style="display:none">
+      <button class="btn btn-secondary" id="btn-bg-remove" style="display:none;margin-top:8px;font-size:11px;padding:7px 10px;">
+        <svg width="10" height="10" viewBox="0 0 12 12" fill="none"><path d="M2 10L10 2M2 2l8 8" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+        Rimuovi sfondo
+      </button>
+      <button id="btn-bg-edit">
+        <svg width="10" height="10" viewBox="0 0 12 12" fill="none"><path d="M8 1l3 3-7 7H1V8L8 1z" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        Modifica posizione
+      </button>
+    </div>
+
+    <!-- Azioni -->
+    <div class="section">
+      <div class="section-label">Azioni</div>
+      <div class="btn-group">
+        <button class="btn btn-primary" id="btn-preview">
+          <svg width="12" height="12" viewBox="0 0 12 12" fill="none"><polygon points="3,1 11,6 3,11" fill="currentColor"/></svg>
+          Anteprima
+        </button>
+        <button class="btn btn-accent2" id="btn-export">
+          <svg width="12" height="12" viewBox="0 0 12 12" fill="none"><path d="M6 1v7M3 6l3 3 3-3M1 10h10" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          Esporta GIF
+        </button>
+        <button class="btn btn-secondary" id="btn-clear">
+          <svg width="12" height="12" viewBox="0 0 12 12" fill="none"><path d="M2 10L10 2M2 2l8 8" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+          Cancella tutto
+        </button>
+      </div>
+    </div>
+
+    <div id="status-bar">Pronto — inizia a disegnare</div>
+  </div>
+
+  <!-- ── CANVAS AREA ── -->
+  <div id="canvas-wrap">
+    <canvas id="bg-canvas"></canvas>
+    <canvas id="draw-canvas"></canvas>
+    <canvas id="preview-canvas"></canvas>
+    <canvas id="wobble-canvas"></canvas>
+
+    <!-- bg transform overlay -->
+    <div id="bg-overlay">
+      <div id="bg-box">
+        <div class="bg-handle rot" data-handle="rot"></div>
+        <div id="bg-rot-line"></div>
+        <div class="bg-handle nw" data-handle="nw"></div>
+        <div class="bg-handle ne" data-handle="ne"></div>
+        <div class="bg-handle sw" data-handle="sw"></div>
+        <div class="bg-handle se" data-handle="se"></div>
+        <div class="bg-handle n"  data-handle="n"></div>
+        <div class="bg-handle s"  data-handle="s"></div>
+        <div class="bg-handle w"  data-handle="w"></div>
+        <div class="bg-handle e"  data-handle="e"></div>
+      </div>
+    </div>
+
+    <div id="canvas-toolbar">
+      <div id="mode-badge">DISEGNO</div>
+      <div class="icon-btn" id="btn-undo" title="Indietro (Ctrl+Z)">
+        <svg width="13" height="13" viewBox="0 0 13 13" fill="none"><path d="M2 6.5L6 2.5M2 6.5L6 10.5M2 6.5H10.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      </div>
+      <div class="icon-btn" id="btn-redo" title="Avanti (Ctrl+Y)">
+        <svg width="13" height="13" viewBox="0 0 13 13" fill="none"><path d="M11 6.5L7 2.5M11 6.5L7 10.5M11 6.5H2.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      </div>
+    </div>
+
+    <div id="export-progress"><div id="export-progress-bar"></div></div>
+  </div>
+
+</div>
+
+<a id="dl-link"></a>
+
+<script>
+/* ══════════════════════════════════════════════════════════════
+   SKETCH ANIMATOR — core logic
+   ══════════════════════════════════════════════════════════════ */
+
+// ── State
+const state = {
+  strokes: [],          // [{color, size, points:[{x,y}]}, …]
+  currentStroke: null,
+  isDrawing: false,
+  color: '#ffffff',
+  size: 6,
+  wobble: true,
+  wobbleStrength: 3,    // 0–10 slider value
+  animating: false,
+  livePreview: false,
+  totalDuration: 5,     // seconds for the draw-in phase
+  holdDuration: 5,      // seconds to stay visible with wobble after draw-in
+  trimPath: false,      // trim path: draw then erase along the path
+  bgImage: null,        // HTMLImageElement or null
+  bgOpacity: 0.3,       // 0–1
+  bgTransform: {        // image position/size/rotation
+    x: 0, y: 0,        // top-left corner in canvas CSS px
+    w: 0, h: 0,        // displayed size
+    angle: 0,           // rotation in radians
+  },
+  bgEditing: false,     // transform overlay active
+  history: [],          // stack of strokes snapshots for infinite undo
+  redoStack: [],        // stack for redo after undo
+};
+
+// ── DOM refs
+const wrap       = document.getElementById('canvas-wrap');
+const bgCanvas     = document.getElementById('bg-canvas');
+const drawCanvas   = document.getElementById('draw-canvas');
+const prevCanvas   = document.getElementById('preview-canvas');
+const wobbleCanvas = document.getElementById('wobble-canvas');
+const bgCtx        = bgCanvas.getContext('2d');
+const dCtx         = drawCanvas.getContext('2d');
+const pCtx         = prevCanvas.getContext('2d');
+const wCtx         = wobbleCanvas.getContext('2d');
+const statusBar    = document.getElementById('status-bar');
+const modeBadge    = document.getElementById('mode-badge');
+const progressWrap = document.getElementById('export-progress');
+const progressBar  = document.getElementById('export-progress-bar');
+const dlLink       = document.getElementById('dl-link');
+
+// ── Resize canvases to fill wrap (full device pixel resolution)
+function resizeCanvases() {
+  const dpr = window.devicePixelRatio || 1;
+  const w = wrap.clientWidth, h = wrap.clientHeight;
+  [bgCanvas, drawCanvas, prevCanvas, wobbleCanvas].forEach(c => {
+    c.width  = Math.round(w * dpr);
+    c.height = Math.round(h * dpr);
+    c.style.width  = w + 'px';
+    c.style.height = h + 'px';
+    const ctx = c.getContext('2d');
+    ctx.scale(dpr, dpr);
+  });
+  drawBgImage();
+  redrawAll();
+}
+
+// ── Draw background image on bgCanvas using transform state
+function drawBgImage() {
+  const w = wrap.clientWidth, h = wrap.clientHeight;
+  bgCtx.clearRect(0, 0, w, h);
+  if (!state.bgImage) return;
+  const t = state.bgTransform;
+  const cx = t.x + t.w / 2;
+  const cy = t.y + t.h / 2;
+  bgCtx.save();
+  bgCtx.globalAlpha = state.bgOpacity;
+  bgCtx.translate(cx, cy);
+  bgCtx.rotate(t.angle);
+  bgCtx.drawImage(state.bgImage, -t.w / 2, -t.h / 2, t.w, t.h);
+  bgCtx.restore();
+}
+
+// ── Initialise bgTransform so image fits cover on load
+function initBgTransform() {
+  const w = wrap.clientWidth, h = wrap.clientHeight;
+  const img = state.bgImage;
+  const scale = Math.min(w / img.naturalWidth, h / img.naturalHeight);
+  const sw = img.naturalWidth * scale;
+  const sh = img.naturalHeight * scale;
+  state.bgTransform = {
+    x: (w - sw) / 2,
+    y: (h - sh) / 2,
+    w: sw, h: sh,
+    angle: 0,
+  };
+}
+
+// ── Update the visual box position of the overlay to match bgTransform
+function updateBgBox() {
+  const t = state.bgTransform;
+  const box = document.getElementById('bg-box');
+  box.style.left   = t.x + 'px';
+  box.style.top    = t.y + 'px';
+  box.style.width  = t.w + 'px';
+  box.style.height = t.h + 'px';
+  box.style.transform = `rotate(${t.angle}rad)`;
+  box.style.transformOrigin = '50% 50%';
+}
+window.addEventListener('resize', resizeCanvases);
+resizeCanvases();
+
+// ── Controls wiring
+const sizeRange  = document.getElementById('size-range');
+const sizeLabel  = document.getElementById('size-label');
+const sizeDot    = document.getElementById('size-dot');
+const customColor = document.getElementById('custom-color');
+const toggleWobble  = document.getElementById('toggle-wobble');
+const togglePreview = document.getElementById('toggle-preview');
+
+const btnPreview = document.getElementById('btn-preview');
+const btnExport  = document.getElementById('btn-export');
+const btnClear   = document.getElementById('btn-clear');
+const btnUndo    = document.getElementById('btn-undo');
+
+sizeRange.addEventListener('input', () => {
+  state.size = +sizeRange.value;
+  sizeLabel.textContent = state.size;
+  const d = Math.min(state.size * 1.8, 36);
+  sizeDot.style.width = d + 'px';
+  sizeDot.style.height = d + 'px';
+});
+
+// swatches
+document.getElementById('swatches').addEventListener('click', e => {
+  const sw = e.target.closest('.swatch');
+  if (!sw) return;
+  document.querySelectorAll('.swatch').forEach(s => s.classList.remove('active'));
+  sw.classList.add('active');
+  state.color = sw.dataset.color;
+  customColor.value = state.color;
+});
+customColor.addEventListener('input', () => {
+  state.color = customColor.value;
+  document.querySelectorAll('.swatch').forEach(s => s.classList.remove('active'));
+});
+
+toggleWobble.addEventListener('change', () => {
+  state.wobble = toggleWobble.checked;
+  if (!state.wobble) wCtx.clearRect(0, 0, wobbleCanvas.width, wobbleCanvas.height);
+});
+
+// total duration input
+const totalDurInput = document.getElementById('total-duration');
+totalDurInput.addEventListener('input', () => {
+  const v = parseFloat(totalDurInput.value);
+  if (!isNaN(v) && v > 0) state.totalDuration = v;
+});
+
+// hold duration input
+const holdDurInput = document.getElementById('hold-duration');
+holdDurInput.addEventListener('input', () => {
+  const v = parseFloat(holdDurInput.value);
+  if (!isNaN(v) && v >= 0) state.holdDuration = v;
+});
+
+// wobble strength slider
+const wobbleStrengthRange = document.getElementById('wobble-strength-range');
+const wobbleStrengthLabel = document.getElementById('wobble-strength-label');
+wobbleStrengthRange.addEventListener('input', () => {
+  state.wobbleStrength = +wobbleStrengthRange.value;
+  wobbleStrengthLabel.textContent = state.wobbleStrength;
+});
+const toggleTrim = document.getElementById('toggle-trim');
+toggleTrim.addEventListener('change', () => {
+  state.trimPath = toggleTrim.checked;
+});
+
+togglePreview.addEventListener('change', () => {
+  state.livePreview = togglePreview.checked;
+  if (!state.livePreview) {
+    pCtx.clearRect(0, 0, prevCanvas.width, prevCanvas.height);
+    prevCanvas.classList.remove('visible');
+  }
+});
+
+btnClear.addEventListener('click', () => {
+  state.strokes = [];
+  state.history = [];
+  state.redoStack = [];
+  updateHistoryButtons();
+  dCtx.clearRect(0, 0, drawCanvas.width, drawCanvas.height);
+  setStatus('Tela pulita', '');
+});
+
+btnUndo.addEventListener('click', doUndo);
+
+const btnRedo = document.getElementById('btn-redo');
+btnRedo.addEventListener('click', doRedo);
+
+function updateHistoryButtons() {
+  btnUndo.style.opacity = state.history.length === 0 ? '0.3' : '1';
+  btnRedo.style.opacity = state.redoStack.length === 0 ? '0.3' : '1';
+}
+
+function doUndo() {
+  if (state.history.length === 0) { setStatus('Niente da annullare', 'err'); return; }
+  // push current to redo
+  state.redoStack.push(state.strokes.map(s => ({ ...s, points: s.points.slice() })));
+  state.history.pop();
+  state.strokes = state.history.length > 0
+    ? state.history[state.history.length - 1].map(s => ({ ...s, points: s.points.slice() }))
+    : [];
+  redrawAll();
+  updateHistoryButtons();
+  setStatus(state.strokes.length > 0
+    ? `Annullato — ${state.strokes.length} tratt${state.strokes.length===1?'o':'i'}`
+    : 'Tutto annullato', '');
+}
+
+function doRedo() {
+  if (state.redoStack.length === 0) { setStatus('Niente da ripristinare', 'err'); return; }
+  const next = state.redoStack.pop();
+  state.strokes = next.map(s => ({ ...s, points: s.points.slice() }));
+  state.history.push(next.map(s => ({ ...s, points: s.points.slice() })));
+  redrawAll();
+  updateHistoryButtons();
+  setStatus(`Ripristinato — ${state.strokes.length} tratt${state.strokes.length===1?'o':'i'}`, '');
+}
+
+// Ctrl+Z / Cmd+Z, Ctrl+Y / Ctrl+Shift+Z
+window.addEventListener('keydown', e => {
+  if ((e.ctrlKey || e.metaKey) && e.key === 'z' && !e.shiftKey) { e.preventDefault(); doUndo(); }
+  if ((e.ctrlKey || e.metaKey) && (e.key === 'y' || (e.key === 'z' && e.shiftKey))) { e.preventDefault(); doRedo(); }
+});
+
+btnPreview.addEventListener('click', () => {
+  if (state.strokes.length === 0) { setStatus('Nessun tratto da animare', 'err'); return; }
+  if (state.animating) return;
+  runAnimation(pCtx, prevCanvas, 0, 0, null, 'preview');
+});
+
+btnExport.addEventListener('click', () => {
+  if (state.strokes.length === 0) { setStatus('Nessun tratto da esportare', 'err'); return; }
+  if (state.animating) return;
+  exportGIF();
+});
+
+// ── Background image controls
+const bgFileInput   = document.getElementById('bg-file-input');
+const btnBgUpload   = document.getElementById('btn-bg-upload');
+const btnBgRemove   = document.getElementById('btn-bg-remove');
+const bgOpacityRange = document.getElementById('bg-opacity-range');
+const bgOpacityVal  = document.getElementById('bg-opacity-val');
+const bgOpacityRow  = document.getElementById('bg-opacity-row');
+
+btnBgUpload.addEventListener('click', () => bgFileInput.click());
+
+bgFileInput.addEventListener('change', () => {
+  const file = bgFileInput.files[0];
+  if (!file) return;
+  const url = URL.createObjectURL(file);
+  const img = new Image();
+  img.onload = () => {
+    if (state.bgImage) URL.revokeObjectURL(state.bgImage._url);
+    img._url = url;
+    state.bgImage = img;
+    initBgTransform();
+    drawBgImage();
+    const label = file.name.slice(0, 18) + (file.name.length > 18 ? '…' : '');
+    btnBgUpload.innerHTML = `<svg width="10" height="10" viewBox="0 0 12 12" fill="none"><path d="M2 10L10 2M2 2l8 8" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg> ${label}`;
+    btnBgUpload.classList.add('has-image');
+    bgOpacityRow.style.display = 'flex';
+    bgOpacityRange.style.display = 'block';
+    btnBgRemove.style.display = 'flex';
+    btnBgEdit.style.display = 'flex';
+    setStatus('Immagine sfondo caricata', '');
+  };
+  img.src = url;
+  bgFileInput.value = '';
+});
+
+bgOpacityRange.addEventListener('input', () => {
+  state.bgOpacity = bgOpacityRange.value / 100;
+  bgOpacityVal.textContent = bgOpacityRange.value + '%';
+  drawBgImage();
+});
+
+btnBgRemove.addEventListener('click', () => {
+  if (state.bgImage?._url) URL.revokeObjectURL(state.bgImage._url);
+  state.bgImage = null;
+  drawBgImage();
+  setBgEditing(false);
+  btnBgUpload.innerHTML = '<svg width="12" height="12" viewBox="0 0 12 12" fill="none"><path d="M6 1v7M3 4l3-3 3 3M1 10h10" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg> Carica immagine';
+  btnBgUpload.classList.remove('has-image');
+  bgOpacityRow.style.display = 'none';
+  bgOpacityRange.style.display = 'none';
+  btnBgRemove.style.display = 'none';
+  btnBgEdit.style.display = 'none';
+  setStatus('Sfondo rimosso', '');
+});
+
+// ── Edit mode toggle
+const btnBgEdit = document.getElementById('btn-bg-edit');
+const bgOverlay = document.getElementById('bg-overlay');
+const bgBox     = document.getElementById('bg-box');
+
+function setBgEditing(on) {
+  state.bgEditing = on;
+  if (on) {
+    bgOverlay.classList.add('active');
+    btnBgEdit.classList.add('editing');
+    btnBgEdit.innerHTML = '<svg width="10" height="10" viewBox="0 0 12 12" fill="none"><path d="M1 1l10 10M1 11L11 1" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg> Chiudi modifica';
+    updateBgBox();
+    // disable drawing canvas events while editing
+    drawCanvas.style.pointerEvents = 'none';
+  } else {
+    bgOverlay.classList.remove('active');
+    btnBgEdit.classList.remove('editing');
+    btnBgEdit.innerHTML = '<svg width="10" height="10" viewBox="0 0 12 12" fill="none"><path d="M8 1l3 3-7 7H1V8L8 1z" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/></svg> Modifica posizione';
+    drawCanvas.style.pointerEvents = '';
+  }
+}
+
+btnBgEdit.addEventListener('click', () => {
+  if (!state.bgImage) return;
+  setBgEditing(!state.bgEditing);
+});
+
+// ── Drag/resize/rotate on the overlay
+let bgDrag = null; // { handle, startX, startY, origT, centerX, centerY }
+
+function getOverlayPos(e) {
+  const rect = wrap.getBoundingClientRect();
+  const src = e.touches ? e.touches[0] : e;
+  return { x: src.clientX - rect.left, y: src.clientY - rect.top };
+}
+
+bgBox.addEventListener('mousedown',  bgPointerDown);
+bgBox.addEventListener('touchstart', e => { e.preventDefault(); bgPointerDown(e); }, { passive: false });
+
+function bgPointerDown(e) {
+  if (!state.bgEditing) return;
+  const handle = e.target.dataset.handle || 'move';
+  const pos = getOverlayPos(e);
+  const t = state.bgTransform;
+  bgDrag = {
+    handle,
+    startX: pos.x,
+    startY: pos.y,
+    origT: { ...t },
+    centerX: t.x + t.w / 2,
+    centerY: t.y + t.h / 2,
+  };
+  e.stopPropagation();
+  e.preventDefault();
+}
+
+window.addEventListener('mousemove',  bgPointerMove);
+window.addEventListener('touchmove',  e => { if (bgDrag) { e.preventDefault(); bgPointerMove(e); } }, { passive: false });
+window.addEventListener('mouseup',    bgPointerUp);
+window.addEventListener('touchend',   bgPointerUp);
+
+function bgPointerMove(e) {
+  if (!bgDrag) return;
+  const pos = getOverlayPos(e);
+  const dx = pos.x - bgDrag.startX;
+  const dy = pos.y - bgDrag.startY;
+  const t = bgDrag.origT;
+  const tr = state.bgTransform;
+
+  if (bgDrag.handle === 'move') {
+    tr.x = t.x + dx;
+    tr.y = t.y + dy;
+
+  } else if (bgDrag.handle === 'rot') {
+    // angle from center to current mouse
+    const cx = t.x + t.w / 2;
+    const cy = t.y + t.h / 2;
+    const angle = Math.atan2(pos.y - cy, pos.x - cx) + Math.PI / 2;
+    tr.angle = angle;
+
+  } else {
+    // resize handle — always proportional, pivot on opposite corner/edge
+    const aspect = bgDrag.origT.w / bgDrag.origT.h;
+    const cos = Math.cos(-t.angle), sin = Math.sin(-t.angle);
+    // delta in image-local (un-rotated) space
+    const ldx = dx * cos - dy * sin;
+    const ldy = dx * sin + dy * cos;
+
+    let newW = t.w, newH = t.h;
+    const h = bgDrag.handle;
+
+    // determine dominant delta based on which handle
+    if (h === 'se' || h === 'e') {
+      newW = Math.max(20, t.w + ldx);
+      newH = newW / aspect;
+    } else if (h === 'sw' || h === 'w') {
+      newW = Math.max(20, t.w - ldx);
+      newH = newW / aspect;
+    } else if (h === 'ne') {
+      newW = Math.max(20, t.w + ldx);
+      newH = newW / aspect;
+    } else if (h === 'nw') {
+      newW = Math.max(20, t.w - ldx);
+      newH = newW / aspect;
+    } else if (h === 's') {
+      newH = Math.max(20, t.h + ldy);
+      newW = newH * aspect;
+    } else if (h === 'n') {
+      newH = Math.max(20, t.h - ldy);
+      newW = newH * aspect;
+    }
+
+    // keep center fixed while resizing
+    const cx = t.x + t.w / 2;
+    const cy = t.y + t.h / 2;
+    tr.w = newW;
+    tr.h = newH;
+    tr.x = cx - newW / 2;
+    tr.y = cy - newH / 2;
+  }
+
+  drawBgImage();
+  updateBgBox();
+}
+
+function bgPointerUp() {
+  bgDrag = null;
+}
+
+// ── Drawing
+function getPos(e) {
+  const rect = drawCanvas.getBoundingClientRect();
+  const src = e.touches ? e.touches[0] : e;
+  return { x: src.clientX - rect.left, y: src.clientY - rect.top };
+}
+
+drawCanvas.addEventListener('mousedown',  startDraw);
+drawCanvas.addEventListener('mousemove',  moveDraw);
+drawCanvas.addEventListener('mouseup',    endDraw);
+drawCanvas.addEventListener('mouseleave', endDraw);
+drawCanvas.addEventListener('touchstart', e => { e.preventDefault(); startDraw(e); }, { passive: false });
+drawCanvas.addEventListener('touchmove',  e => { e.preventDefault(); moveDraw(e);  }, { passive: false });
+drawCanvas.addEventListener('touchend',   e => { e.preventDefault(); endDraw(e);   }, { passive: false });
+
+function startDraw(e) {
+  if (state.animating) return;
+  const p = getPos(e);
+  state.isDrawing = true;
+  state.currentStroke = { color: state.color, size: state.size, points: [p] };
+  dCtx.beginPath();
+  dCtx.moveTo(p.x, p.y);
+}
+
+function moveDraw(e) {
+  if (!state.isDrawing || !state.currentStroke) return;
+  const p = getPos(e);
+  state.currentStroke.points.push(p);
+  // draw incrementally on canvas
+  const pts = state.currentStroke.points;
+  dCtx.lineWidth   = state.size;
+  dCtx.strokeStyle = state.color;
+  dCtx.lineCap     = 'round';
+  dCtx.lineJoin    = 'round';
+  if (pts.length >= 3) {
+    const i = pts.length - 1;
+    const mid = { x: (pts[i-1].x + pts[i].x)/2, y: (pts[i-1].y + pts[i].y)/2 };
+    dCtx.beginPath();
+    dCtx.moveTo((pts[i-2].x + pts[i-1].x)/2, (pts[i-2].y + pts[i-1].y)/2);
+    dCtx.quadraticCurveTo(pts[i-1].x, pts[i-1].y, mid.x, mid.y);
+    dCtx.stroke();
+  } else if (pts.length === 2) {
+    dCtx.beginPath();
+    dCtx.moveTo(pts[0].x, pts[0].y);
+    dCtx.lineTo(pts[1].x, pts[1].y);
+    dCtx.stroke();
+  }
+}
+
+function endDraw() {
+  if (!state.isDrawing || !state.currentStroke) return;
+  state.isDrawing = false;
+  if (state.currentStroke.points.length > 1) {
+    // simplify if too dense
+    state.currentStroke.points = simplifyPoints(state.currentStroke.points, 1.2);
+    state.strokes.push(state.currentStroke);
+    // save snapshot for undo
+    state.history.push(state.strokes.map(s => ({ ...s, points: s.points.slice() })));
+    state.redoStack = []; // new stroke clears redo
+    updateHistoryButtons();
+    setStatus(`${state.strokes.length} tratt${state.strokes.length===1?'o':'i'}`, '');
+  }
+  state.currentStroke = null;
+  // live preview trigger
+  if (state.livePreview && !state.animating) {
+    runAnimation(pCtx, prevCanvas, 0, 0, null, 'live');
+  }
+}
+
+// ── Simplify (Ramer-Douglas-Peucker light)
+function simplifyPoints(pts, tol) {
+  if (pts.length <= 2) return pts;
+  const out = [pts[0]];
+  for (let i = 1; i < pts.length - 1; i++) {
+    const dx = pts[i].x - out[out.length-1].x;
+    const dy = pts[i].y - out[out.length-1].y;
+    if (Math.sqrt(dx*dx+dy*dy) >= tol) out.push(pts[i]);
+  }
+  out.push(pts[pts.length-1]);
+  return out;
+}
+
+// ── Redraw static drawing
+function redrawAll(ctx = dCtx) {
+  ctx.clearRect(0, 0, ctx.canvas.width, ctx.canvas.height);
+  for (const stroke of state.strokes) {
+    drawStroke(ctx, stroke, stroke.points.length, 0);
+  }
+}
+
+// ── Draw a stroke up to pointCount with wobble offset wo
+function drawStroke(ctx, stroke, pointCount, wobbleAmt = 0) {
+  const pts = stroke.points;
+  const count = Math.min(pointCount, pts.length);
+  if (count < 1) return;
+  ctx.save();
+  ctx.lineWidth   = stroke.size;
+  ctx.strokeStyle = stroke.color;
+  ctx.lineCap     = 'round';
+  ctx.lineJoin    = 'round';
+  ctx.beginPath();
+  const jitter = (a) => wobbleAmt > 0 ? (Math.random() - 0.5) * wobbleAmt : 0;
+  ctx.moveTo(pts[0].x + jitter(), pts[0].y + jitter());
+  for (let i = 1; i < count; i++) {
+    const px = pts[i].x + jitter();
+    const py = pts[i].y + jitter();
+    if (count > 2 && i < count - 1) {
+      const nx = (px + pts[Math.min(i+1,count-1)].x)/2 + jitter()*0.5;
+      const ny = (py + pts[Math.min(i+1,count-1)].y)/2 + jitter()*0.5;
+      ctx.quadraticCurveTo(px, py, nx, ny);
+    } else {
+      ctx.lineTo(px, py);
+    }
+  }
+  ctx.stroke();
+  ctx.restore();
+}
+
+// ── Status helper
+function setStatus(msg, type = '') {
+  statusBar.textContent = msg;
+  statusBar.className = type;
+}
+
+/* ══════════════════════════════════════════════════════════════
+   PERSISTENT WOBBLE LOOP — always running on wobble-canvas
+   ══════════════════════════════════════════════════════════════ */
+
+let wobbleRAF = null;
+function startWobbleLoop() {
+  if (wobbleRAF) return;
+  function wobbleFrame() {
+    wobbleRAF = requestAnimationFrame(wobbleFrame);
+    // Hide wobble canvas during animation (preview canvas handles it)
+    if (state.animating || state.strokes.length === 0) {
+      wCtx.clearRect(0, 0, wobbleCanvas.width, wobbleCanvas.height);
+      return;
+    }
+    if (!state.wobble) {
+      wCtx.clearRect(0, 0, wobbleCanvas.width, wobbleCanvas.height);
+      return;
+    }
+    const wobbleAmt = state.wobbleStrength * 0.6;
+    wCtx.clearRect(0, 0, wobbleCanvas.width, wobbleCanvas.height);
+    for (const stroke of state.strokes) {
+      drawStroke(wCtx, stroke, stroke.points.length, wobbleAmt);
+    }
+  }
+  wobbleRAF = requestAnimationFrame(wobbleFrame);
+}
+
+/* ══════════════════════════════════════════════════════════════
+   ANIMATION ENGINE — point-based, uses drawStroke for smooth curves
+   ══════════════════════════════════════════════════════════════ */
+
+let animRAF = null;
+let animStop = false;
+
+function runAnimation(ctx, canvas, _a, _b, onFrame, mode) {
+  if (animRAF) { cancelAnimationFrame(animRAF); animRAF = null; }
+  animStop = false;
+  state.animating = true;
+
+  if (mode === 'preview' || mode === 'live') {
+    prevCanvas.classList.add('visible');
+    drawCanvas.style.opacity  = '0';
+    wobbleCanvas.style.opacity = '0';
+  }
+  if (mode === 'preview') {
+    modeBadge.textContent = 'ANTEPRIMA';
+    setStatus('Animazione in corso…', 'busy');
+    btnPreview.disabled = true;
+    btnExport.disabled  = true;
+  }
+
+  const strokes = state.strokes;
+  if (!strokes.length) { state.animating = false; return; }
+
+  // Total points across all strokes (unit of progress)
+  const totalPts = strokes.reduce((s, st) => s + st.points.length, 0);
+  if (!totalPts) { state.animating = false; return; }
+
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+  const totalMs  = state.totalDuration * 1000;
+  const ptsPerMs = totalPts / totalMs;
+
+  // wobble for the preview animation — matches the persistent loop
+  const wobbleAmt = () => state.wobble ? state.wobbleStrength * 0.6 : 0;
+
+  const holdMs = (mode === 'preview') ? state.holdDuration * 1000 : 0;
+  let holdElapsed = 0;
+  let inHold = false;
+
+  // Trim path state
+  const trimActive = state.trimPath;
+  // In trim mode: draw-in phase draws from 0→totalPts, erase phase erases from 0→totalPts
+  // Both end and start advance, creating a sliding window
+  let revealed = 0;   // leading edge (always advances during draw-in)
+  let erased   = 0;   // trailing edge (advances during erase phase)
+  let inErase  = false;
+  let lastTs = null;
+  let accum  = 0;
+  let eraseAccum = 0;
+
+  // Helper: draw strokes with a sliding window [erased, revealed]
+  function drawWindow(eraseCount, revealCount) {
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    let rem = revealCount;
+    let skipped = 0;
+    for (const stroke of strokes) {
+      if (rem <= 0) break;
+      const strokeStart = skipped;
+      const strokeEnd   = skipped + stroke.points.length;
+
+      // How many points of this stroke fall inside [eraseCount, revealCount]?
+      const visStart = Math.max(eraseCount - strokeStart, 0);
+      const visEnd   = Math.min(rem, stroke.points.length);
+      const take     = visEnd - visStart;
+
+      if (take > 0) {
+        // Draw only the visible slice of this stroke
+        const sliced = { ...stroke, points: stroke.points.slice(visStart, visStart + take) };
+        drawStroke(ctx, sliced, take, wobbleAmt());
+      }
+
+      rem     -= stroke.points.length;
+      skipped += stroke.points.length;
+    }
+  }
+
+  function frame(ts) {
+    if (animStop) return cleanup(mode);
+    if (lastTs === null) lastTs = ts;
+    const delta = ts - lastTs;
+    lastTs = ts;
+
+    if (!inHold && !inErase) {
+      // Draw-in phase
+      accum += delta * ptsPerMs;
+      const toReveal = Math.floor(accum);
+      accum -= toReveal;
+      revealed = Math.min(revealed + toReveal, totalPts);
+
+      if (trimActive) {
+        // Sliding window: draw from 0 to revealed (erased stays 0 during draw-in)
+        drawWindow(0, revealed);
+      } else {
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        let rem = revealed;
+        for (const stroke of strokes) {
+          if (rem <= 0) break;
+          const take = Math.min(rem, stroke.points.length);
+          drawStroke(ctx, stroke, take, wobbleAmt());
+          rem -= stroke.points.length;
+        }
+      }
+
+      if (onFrame) onFrame(ctx, revealed / totalPts, ts);
+
+      if (revealed < totalPts) {
+        animRAF = requestAnimationFrame(frame);
+      } else if (trimActive) {
+        // Move into erase phase immediately (no hold in trim mode)
+        inErase = true;
+        erased  = 0;
+        eraseAccum = 0;
+        animRAF = requestAnimationFrame(frame);
+      } else if (holdMs > 0) {
+        inHold = true;
+        animRAF = requestAnimationFrame(frame);
+      } else {
+        cleanup(mode);
+      }
+    } else if (inErase) {
+      // Erase phase: start edge advances from 0 → totalPts
+      eraseAccum += delta * ptsPerMs;
+      const toErase = Math.floor(eraseAccum);
+      eraseAccum -= toErase;
+      erased = Math.min(erased + toErase, totalPts);
+
+      drawWindow(erased, totalPts);
+
+      if (erased < totalPts) {
+        animRAF = requestAnimationFrame(frame);
+      } else if (holdMs > 0) {
+        inErase = false;
+        inHold  = true;
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        animRAF = requestAnimationFrame(frame);
+      } else {
+        cleanup(mode);
+      }
+    } else if (inHold) {
+      // Hold phase
+      holdElapsed += delta;
+      if (!trimActive) {
+        // Keep drawing all strokes with wobble
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        for (const stroke of strokes) {
+          drawStroke(ctx, stroke, stroke.points.length, wobbleAmt());
+        }
+      }
+      if (holdElapsed < holdMs) {
+        animRAF = requestAnimationFrame(frame);
+      } else {
+        cleanup(mode);
+      }
+    }
+  }
+
+  animRAF = requestAnimationFrame(frame);
+}
+
+function stopAnimation() {
+  animStop = true;
+  if (animRAF) { cancelAnimationFrame(animRAF); animRAF = null; }
+}
+
+function cleanup(mode) {
+  state.animating = false;
+  if (mode === 'preview') {
+    modeBadge.textContent = 'DISEGNO';
+    btnPreview.disabled = false;
+    btnExport.disabled  = false;
+    setStatus('Anteprima completata ✓', 'done');
+    setTimeout(() => {
+      prevCanvas.classList.remove('visible');
+      pCtx.clearRect(0, 0, prevCanvas.width, prevCanvas.height);
+      redrawAll();
+      drawCanvas.style.opacity  = '1';
+      wobbleCanvas.style.opacity = '1';
+    }, 1200);
+  } else if (mode === 'live') {
+    pCtx.clearRect(0, 0, prevCanvas.width, prevCanvas.height);
+    prevCanvas.classList.remove('visible');
+    drawCanvas.style.opacity  = '1';
+    wobbleCanvas.style.opacity = '1';
+  }
+}
+
+/* ══════════════════════════════════════════════════════════════
+   INLINE GIF ENCODER — streaming, no frame accumulation
+   Fast LZW with Int32Array hash table, ByteWriter with chunks
+   ══════════════════════════════════════════════════════════════ */
+
+// Streaming GIF encoder: writes header+palette once, then accepts frames
+// one at a time via addFrameCanvas(). Call finish() to get the Blob.
+class GifEncoder {
+  constructor(w, h, { fps = 15, repeat = 0 } = {}) {
+    this.w = w; this.h = h;
+    this.delay = Math.round(100 / fps);
+    this.repeat = repeat;
+    this.chunks = [];      // Array of Uint8Array — never stores raw ImageData
+    this._palette = null;
+    this._indexFn = null;
+    this._paletteCanvas = null; // first frame canvas, used to build palette
+    this._headerWritten = false;
+  }
+
+  // Call with the first frame canvas to build palette and write header
+  _writeHeader(canvas) {
+    const W = this.w, H = this.h;
+    // Snapshot pixel data from canvas
+    const tmpC = document.createElement('canvas');
+    tmpC.width = W; tmpC.height = H;
+    const tmpX = tmpC.getContext('2d');
+    tmpX.drawImage(canvas, 0, 0, W, H);
+    const img = tmpX.getImageData(0, 0, W, H);
+
+    const { palette, indexFn } = buildPalette(img);
+    this._palette = palette;
+    this._indexFn = indexFn;
+
+    const bw = new ChunkWriter();
+    bw.str('GIF89a');
+    bw.u16(W); bw.u16(H);
+    bw.u8(0xF7); bw.u8(0); bw.u8(0); // global CT, 256 colors
+    for (let i = 0; i < 256; i++) {
+      const c = palette[i] || [0,0,0];
+      bw.u8(c[0]); bw.u8(c[1]); bw.u8(c[2]);
+    }
+    if (this.repeat >= 0) {
+      bw.u8(0x21); bw.u8(0xFF); bw.u8(0x0B);
+      bw.str('NETSCAPE2.0');
+      bw.u8(3); bw.u8(1); bw.u16(this.repeat); bw.u8(0);
+    }
+    this.chunks.push(bw.flush());
+    this._headerWritten = true;
+    // also encode this first frame
+    this._encodeFrameData(img);
+  }
+
+  // Add a canvas frame — encodes immediately, does not store ImageData
+  addFrame(canvas) {
+    const W = this.w, H = this.h;
+    if (!this._headerWritten) {
+      this._writeHeader(canvas);
+      return;
+    }
+    const tmpC = document.createElement('canvas');
+    tmpC.width = W; tmpC.height = H;
+    const tmpX = tmpC.getContext('2d');
+    tmpX.drawImage(canvas, 0, 0, W, H);
+    const img = tmpX.getImageData(0, 0, W, H);
+    this._encodeFrameData(img);
+  }
+
+  _encodeFrameData(imgData) {
+    const W = this.w, H = this.h;
+    const bw = new ChunkWriter();
+    // Graphic control extension — transparency enabled, disposal = restore to background (2)
+    // Flags byte: disposal=2 (bits 3-5 = 010), user input=0, transparent flag=1 → 0b00001001 = 0x09
+    // disposal=2 means "restore to background color" between frames — needed for correct transparency
+    bw.u8(0x21); bw.u8(0xF9); bw.u8(4);
+    bw.u8(0x09); // flags: disposal=2 (restore to bg), transparent flag set
+    bw.u16(this.delay);
+    bw.u8(0);    // transparent color index = 0
+    bw.u8(0);    // block terminator
+    // Image descriptor
+    bw.u8(0x2C);
+    bw.u16(0); bw.u16(0); bw.u16(W); bw.u16(H);
+    bw.u8(0);
+    // Build index array — transparent pixels → index 0
+    const indices = new Uint8Array(W * H);
+    const data = imgData.data;
+    const indexFn = this._indexFn;
+    for (let i = 0; i < W * H; i++) {
+      indices[i] = indexFn(data[i*4], data[i*4+1], data[i*4+2], data[i*4+3]);
+    }
+    // LZW encode
+    const lzw = lzwEncode(indices, 8);
+    bw.u8(8);
+    let pos = 0;
+    while (pos < lzw.length) {
+      const block = Math.min(255, lzw.length - pos);
+      bw.u8(block);
+      for (let i = 0; i < block; i++) bw.u8(lzw[pos++]);
+    }
+    bw.u8(0);
+    this.chunks.push(bw.flush());
+  }
+
+  // Finalize and return Blob
+  encode() {
+    const bw = new ChunkWriter();
+    bw.u8(0x3B);
+    this.chunks.push(bw.flush());
+    return new Blob(this.chunks, { type: 'image/gif' });
+  }
+}
+
+// ChunkWriter: uses a growable Uint8Array — much faster than push() on plain array
+class ChunkWriter {
+  constructor() {
+    this._buf = new Uint8Array(65536);
+    this._pos = 0;
+  }
+  _grow() {
+    const nb = new Uint8Array(this._buf.length * 2);
+    nb.set(this._buf);
+    this._buf = nb;
+  }
+  u8(v) {
+    if (this._pos >= this._buf.length) this._grow();
+    this._buf[this._pos++] = v & 0xFF;
+  }
+  u16(v) { this.u8(v & 0xFF); this.u8((v >> 8) & 0xFF); }
+  str(s) { for (let i = 0; i < s.length; i++) this.u8(s.charCodeAt(i)); }
+  flush() { return this._buf.slice(0, this._pos); }
+}
+
+function buildPalette(imgData) {
+  const data = imgData.data;
+  const n = data.length >> 2;
+  const counts = new Int32Array(32768);
+  for (let i = 0; i < n; i++) {
+    // Skip fully transparent pixels — they map to index 0 (transparent)
+    if (data[i*4+3] < 128) continue;
+    counts[((data[i*4]>>3) << 10) | ((data[i*4+1]>>3) << 5) | (data[i*4+2]>>3)]++;
+  }
+  const entries = [];
+  for (let k = 0; k < 32768; k++) if (counts[k] > 0) entries.push(k);
+  entries.sort((a, b) => counts[b] - counts[a]);
+
+  // Index 0 = transparent (reserved), actual colors start at index 1
+  const palette = [[0,0,0]]; // index 0 = transparent placeholder
+  for (let i = 0; i < Math.min(255, entries.length); i++) {
+    const k = entries[i];
+    palette.push([(k >> 10) << 3, ((k >> 5) & 31) << 3, (k & 31) << 3]);
+  }
+  while (palette.length < 256) palette.push([0,0,0]);
+
+  // Direct 15-bit lookup array (32768 entries) — O(1), no Map overhead
+  // Returns 1-based indices (0 is reserved for transparent)
+  const lut = new Uint8Array(32768);
+  for (let i = 1; i < palette.length; i++) {
+    const c = palette[i];
+    lut[((c[0]>>3) << 10) | ((c[1]>>3) << 5) | (c[2]>>3)] = i;
+  }
+  // indexFn: returns 0 for transparent pixels, palette index otherwise
+  const indexFn = (r, g, b, a) => {
+    if (a < 128) return 0; // transparent
+    const idx = lut[((r>>3) << 10) | ((g>>3) << 5) | (b>>3)];
+    return idx === 0 ? 1 : idx; // avoid accidentally mapping opaque to transparent slot
+  };
+  return { palette, indexFn };
+}
+
+// Fast LZW with Int32Array hash table (no string keys)
+function lzwEncode(indices, minCode) {
+  const clearCode = 1 << minCode;
+  const eofCode   = clearCode + 1;
+  const MAX_CODE  = 4096;
+  // Hash table: key = prefix*256+suffix → code
+  // Use open-addressing with size 16384 (next power of 2 > 4096*1)
+  const HT_SIZE = 1 << 14; // 16384
+  const HT_MASK = HT_SIZE - 1;
+  const htKey = new Int32Array(HT_SIZE).fill(-1);
+  const htVal = new Int32Array(HT_SIZE);
+
+  let codeSize = minCode + 1;
+  let nextCode = eofCode + 1;
+
+  const out = new Uint8Array(indices.length * 2 + 1024);
+  let outPos = 0;
+  let bitBuf = 0, bitLen = 0;
+
+  const emit = (code) => {
+    bitBuf |= code << bitLen;
+    bitLen += codeSize;
+    while (bitLen >= 8) {
+      if (outPos >= out.length) { /* shouldn't happen but guard */ }
+      out[outPos++] = bitBuf & 0xFF;
+      bitBuf >>= 8; bitLen -= 8;
+    }
+  };
+
+  const resetHT = () => {
+    htKey.fill(-1);
+    codeSize = minCode + 1;
+    nextCode = eofCode + 1;
+  };
+
+  const htLookup = (prefix, suffix) => {
+    const k = (prefix << 8) | suffix;
+    let slot = (k * 2654435761) & HT_MASK;
+    for (let i = 0; i < HT_SIZE; i++) {
+      if (htKey[slot] === -1) return -1;
+      if (htKey[slot] === k) return htVal[slot];
+      slot = (slot + 1) & HT_MASK;
+    }
+    return -1;
+  };
+
+  const htInsert = (prefix, suffix, code) => {
+    const k = (prefix << 8) | suffix;
+    let slot = (k * 2654435761) & HT_MASK;
+    while (htKey[slot] !== -1 && htKey[slot] !== k) slot = (slot + 1) & HT_MASK;
+    htKey[slot] = k; htVal[slot] = code;
+  };
+
+  resetHT();
+  emit(clearCode);
+
+  let prefix = indices[0];
+  for (let i = 1; i < indices.length; i++) {
+    const suffix = indices[i];
+    const code = htLookup(prefix, suffix);
+    if (code !== -1) {
+      prefix = code;
+    } else {
+      emit(prefix);
+      if (nextCode < MAX_CODE) {
+        htInsert(prefix, suffix, nextCode++);
+        if (nextCode > (1 << codeSize) && codeSize < 12) codeSize++;
+      } else {
+        emit(clearCode);
+        resetHT();
+      }
+      prefix = suffix;
+    }
+  }
+  emit(prefix);
+  emit(eofCode);
+  if (bitLen > 0) out[outPos++] = bitBuf & 0xFF;
+  return out.slice(0, outPos);
+}
+
+/* ══════════════════════════════════════════════════════════════
+   GIF EXPORT — uses inline encoder, no gif.js / no Workers
+   ══════════════════════════════════════════════════════════════ */
+
+function exportGIF() {
+  const drawDurMs  = state.totalDuration * 1000;
+  const holdDurMs  = state.holdDuration * 1000;
+  const FPS        = 15;
+  // If trim path: draw-in + erase + hold. Otherwise: draw-in + hold
+  const cycleDurMs = state.trimPath
+    ? drawDurMs + drawDurMs + holdDurMs
+    : drawDurMs + holdDurMs;
+  const frameCount = Math.ceil((cycleDurMs / 1000) * FPS);
+  const frameMs    = 1000 / FPS;
+
+  // Cap export resolution to 800px wide to avoid OOM — scale strokes proportionally
+  const cssW = wrap.clientWidth;
+  const cssH = wrap.clientHeight;
+  const MAX_W = 800;
+  const scale = cssW > MAX_W ? MAX_W / cssW : 1;
+  const W = Math.round(cssW * scale);
+  const H = Math.round(cssH * scale);
+
+  const offCanvas = document.createElement('canvas');
+  offCanvas.width = W; offCanvas.height = H;
+  const offCtx = offCanvas.getContext('2d', { alpha: true });
+  // Scale context so stroke coordinates (in CSS px) map to export px
+  offCtx.scale(scale, scale);
+
+  const strokes   = state.strokes;
+  const totalPts  = strokes.reduce((s, st) => s + st.points.length, 0);
+
+  setStatus('Rendering frame…', 'busy');
+  btnExport.disabled  = true;
+  btnPreview.disabled = true;
+  progressWrap.style.display = 'block';
+  progressBar.style.width = '0%';
+
+  // Seeded random for reproducible wobble — different per frame, same per point within frame
+  function seededRand(seed) {
+    let s = seed | 0;
+    s = Math.imul(48271, s) | 0;
+    s = Math.imul(2654435761, s ^ (s >>> 16)) | 0;
+    return ((s >>> 0) / 0xFFFFFFFF) - 0.5;
+  }
+
+  // drawStroke variant with seeded random — wobble amplitude matches preview (wobbleStrength * 0.6)
+  function drawStrokeSeeded(ctx, stroke, pointCount, wobbleAmt, seedBase, strokeIdx) {
+    const pts = stroke.points;
+    const count = Math.min(pointCount, pts.length);
+    if (count < 1) return;
+    let seedCtr = seedBase ^ (strokeIdx * 6271);
+    const j = () => wobbleAmt > 0 ? seededRand(seedCtr++) * wobbleAmt : 0;
+    ctx.save();
+    ctx.lineWidth   = stroke.size;
+    ctx.strokeStyle = stroke.color;
+    ctx.lineCap     = 'round';
+    ctx.lineJoin    = 'round';
+    ctx.beginPath();
+    ctx.moveTo(pts[0].x + j(), pts[0].y + j());
+    for (let i = 1; i < count; i++) {
+      const px = pts[i].x + j();
+      const py = pts[i].y + j();
+      if (count > 2 && i < count - 1) {
+        const nx = (px + pts[Math.min(i+1,count-1)].x)/2 + j()*0.5;
+        const ny = (py + pts[Math.min(i+1,count-1)].y)/2 + j()*0.5;
+        ctx.quadraticCurveTo(px, py, nx, ny);
+      } else {
+        ctx.lineTo(px, py);
+      }
+    }
+    ctx.stroke();
+    ctx.restore();
+  }
+
+  const trimActive  = state.trimPath;
+  const eraseDurMs  = trimActive ? drawDurMs : 0;
+  // Total cycle: draw-in + hold + erase (trim) + hold-after-erase
+  const totalCycleMs = drawDurMs + holdDurMs + eraseDurMs;
+
+  function renderExportFrame(frameIdx) {
+    const elapsed    = frameIdx * frameMs;
+    // Wobble amplitude identical to preview: wobbleStrength * 0.6
+    const wobbleAmt  = state.wobble ? state.wobbleStrength * 0.6 : 0;
+    // Each frame gets a unique seed so wobble varies frame-to-frame (like Math.random() in preview)
+    const seedBase   = (frameIdx * 1999) ^ 0xDEAD;
+
+    // Transparent background
+    offCtx.clearRect(0, 0, cssW, cssH);
+
+    if (elapsed < drawDurMs) {
+      // Draw-in phase
+      const progress  = elapsed / drawDurMs;
+      let   rem       = Math.floor(progress * totalPts);
+      strokes.forEach((stroke, si) => {
+        if (rem <= 0) return;
+        const take = Math.min(rem, stroke.points.length);
+        drawStrokeSeeded(offCtx, stroke, take, wobbleAmt, seedBase, si);
+        rem -= stroke.points.length;
+      });
+    } else if (!trimActive && elapsed < drawDurMs + holdDurMs) {
+      // Hold phase (no trim)
+      strokes.forEach((stroke, si) => {
+        drawStrokeSeeded(offCtx, stroke, stroke.points.length, wobbleAmt, seedBase, si);
+      });
+    } else if (trimActive && elapsed < drawDurMs + eraseDurMs) {
+      // Erase phase: sliding window — erased advances, revealed stays at totalPts
+      const eraseProgress = (elapsed - drawDurMs) / eraseDurMs;
+      const erased = Math.floor(eraseProgress * totalPts);
+      let rem = totalPts - erased;
+      let skipped = 0;
+      strokes.forEach((stroke, si) => {
+        const strokeStart = skipped;
+        const visStart = Math.max(erased - strokeStart, 0);
+        const visEnd   = Math.min(rem, stroke.points.length);
+        const take     = visEnd - visStart;
+        if (take > 0) {
+          const slicedStroke = { ...stroke, points: stroke.points.slice(visStart, visStart + take) };
+          drawStrokeSeeded(offCtx, slicedStroke, take, wobbleAmt, seedBase, si);
+        }
+        rem     -= stroke.points.length;
+        skipped += stroke.points.length;
+      });
+    } else if (trimActive && elapsed < drawDurMs + eraseDurMs + holdDurMs) {
+      // Hold after erase — canvas is empty, nothing to draw
+    } else if (!trimActive) {
+      // Hold overflow (shouldn't happen with correct frameCount)
+      strokes.forEach((stroke, si) => {
+        drawStrokeSeeded(offCtx, stroke, stroke.points.length, wobbleAmt, seedBase, si);
+      });
+    }
+  }
+
+  const gif = new GifEncoder(W, H, { fps: FPS, repeat: 0 });
+  let fi = 0;
+
+  function processNextBatch() {
+    // 1 frame per tick — avoids long tasks and OOM from burst allocations
+    if (fi < frameCount) {
+      renderExportFrame(fi);
+      gif.addFrame(offCanvas);
+      progressBar.style.width = ((fi / frameCount) * 90) + '%';
+      setStatus(`Rendering: ${fi+1}/${frameCount} frame…`, 'busy');
+      fi++;
+      setTimeout(processNextBatch, 0);
+    } else {
+      progressBar.style.width = '92%';
+      setStatus('Encoding GIF…', 'busy');
+      setTimeout(() => {
+        try {
+          const blob = gif.encode();
+          progressBar.style.width = '100%';
+          setStatus('GIF pronta! Download avviato.', 'done');
+          btnExport.disabled  = false;
+          btnPreview.disabled = false;
+          setTimeout(() => { progressWrap.style.display = 'none'; progressBar.style.width = '0%'; }, 2000);
+          const url = URL.createObjectURL(blob);
+          dlLink.href = url;
+          dlLink.download = `sketch-${Date.now()}.gif`;
+          dlLink.click();
+          setTimeout(() => URL.revokeObjectURL(url), 8000);
+        } catch(e) {
+          setStatus('Errore encoding: ' + e.message, 'err');
+          btnExport.disabled  = false;
+          btnPreview.disabled = false;
+          progressWrap.style.display = 'none';
+        }
+      }, 0);
+    }
+  }
+
+  setTimeout(processNextBatch, 50);
+}
+
+// ── Start persistent wobble loop
+startWobbleLoop();
+
+// ── Initial hint
+setStatus('Disegna qualcosa per iniziare', '');
+</script>
+</body>
+</html>

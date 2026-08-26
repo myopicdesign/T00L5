@@ -1,0 +1,774 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>BG Eraser — Rimuovi sfondo AI</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Space+Grotesk:wght@500;700&display=swap');
+
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --bg:       #0c0c0f;
+    --surface:  #141417;
+    --card:     #1c1c21;
+    --border:   #2a2a32;
+    --accent:   #7c6bff;
+    --accent2:  #b45cff;
+    --text:     #e8e8f0;
+    --muted:    #6b6b80;
+    --success:  #3ecf8e;
+    --danger:   #ff5f5f;
+    --radius:   14px;
+    --font-ui:  'Inter', sans-serif;
+    --font-dis: 'Space Grotesk', sans-serif;
+  }
+
+  html { scroll-behavior: smooth; }
+
+  body {
+    font-family: var(--font-ui);
+    background: var(--bg);
+    color: var(--text);
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+
+  /* ── HEADER ── */
+  header {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 22px 32px;
+    border-bottom: 1px solid var(--border);
+    background: var(--surface);
+    position: sticky; top: 0; z-index: 100;
+    backdrop-filter: blur(12px);
+  }
+
+  .logo-mark {
+    width: 36px; height: 36px;
+    background: linear-gradient(135deg, var(--accent), var(--accent2));
+    border-radius: 10px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 18px; flex-shrink: 0;
+  }
+
+  header h1 {
+    font-family: var(--font-dis);
+    font-size: 1.2rem;
+    font-weight: 700;
+    letter-spacing: -0.3px;
+  }
+  header h1 span { color: var(--accent); }
+
+  .header-tag {
+    margin-left: auto;
+    font-size: 0.7rem;
+    font-weight: 500;
+    letter-spacing: 0.8px;
+    text-transform: uppercase;
+    color: var(--muted);
+    background: var(--card);
+    border: 1px solid var(--border);
+    padding: 4px 10px;
+    border-radius: 20px;
+  }
+
+  /* ── MAIN LAYOUT ── */
+  main {
+    max-width: 1100px;
+    margin: 0 auto;
+    padding: 40px 24px 80px;
+  }
+
+  /* ── HERO TEXT ── */
+  .hero {
+    text-align: center;
+    margin-bottom: 40px;
+  }
+  .hero h2 {
+    font-family: var(--font-dis);
+    font-size: clamp(1.8rem, 4vw, 2.8rem);
+    font-weight: 700;
+    letter-spacing: -1px;
+    line-height: 1.15;
+    margin-bottom: 12px;
+  }
+  .hero h2 em {
+    font-style: normal;
+    background: linear-gradient(90deg, var(--accent), var(--accent2));
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+  .hero p {
+    color: var(--muted);
+    font-size: 0.95rem;
+    max-width: 480px;
+    margin: 0 auto;
+    line-height: 1.6;
+  }
+
+  /* ── STATUS BAR ── */
+  #status-bar {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 14px 18px;
+    margin-bottom: 28px;
+    font-size: 0.875rem;
+    transition: border-color 0.3s;
+  }
+  #status-bar.loading { border-color: var(--accent); }
+  #status-bar.ready   { border-color: var(--success); }
+  #status-bar.error   { border-color: var(--danger); }
+
+  .status-dot {
+    width: 8px; height: 8px;
+    border-radius: 50%;
+    background: var(--muted);
+    flex-shrink: 0;
+    transition: background 0.3s;
+  }
+  #status-bar.loading .status-dot { background: var(--accent); animation: pulse 1s infinite; }
+  #status-bar.ready   .status-dot { background: var(--success); }
+  #status-bar.error   .status-dot { background: var(--danger); }
+
+  @keyframes pulse {
+    0%, 100% { opacity: 1; transform: scale(1); }
+    50%       { opacity: 0.4; transform: scale(0.7); }
+  }
+
+  .status-progress {
+    margin-left: auto;
+    font-size: 0.75rem;
+    color: var(--muted);
+    font-variant-numeric: tabular-nums;
+  }
+
+  /* ── DROP ZONE ── */
+  #drop-zone {
+    border: 2px dashed var(--border);
+    border-radius: var(--radius);
+    padding: 48px 24px;
+    text-align: center;
+    cursor: pointer;
+    transition: border-color 0.25s, background 0.25s;
+    background: var(--surface);
+    position: relative;
+    overflow: hidden;
+    margin-bottom: 32px;
+  }
+  #drop-zone::before {
+    content: '';
+    position: absolute; inset: 0;
+    background: radial-gradient(ellipse at 50% 0%, rgba(124,107,255,0.08) 0%, transparent 70%);
+    pointer-events: none;
+  }
+  #drop-zone:hover,
+  #drop-zone.dragover {
+    border-color: var(--accent);
+    background: rgba(124,107,255,0.04);
+  }
+  #drop-zone.dragover { background: rgba(124,107,255,0.09); }
+
+  .drop-icon {
+    font-size: 2.5rem;
+    margin-bottom: 16px;
+    display: block;
+  }
+  .drop-title {
+    font-family: var(--font-dis);
+    font-size: 1.1rem;
+    font-weight: 600;
+    margin-bottom: 8px;
+  }
+  .drop-sub {
+    color: var(--muted);
+    font-size: 0.85rem;
+    margin-bottom: 20px;
+  }
+  .btn-primary {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    background: linear-gradient(135deg, var(--accent), var(--accent2));
+    color: #fff;
+    border: none;
+    padding: 10px 22px;
+    border-radius: 8px;
+    font-size: 0.875rem;
+    font-weight: 600;
+    cursor: pointer;
+    font-family: var(--font-ui);
+    transition: opacity 0.2s, transform 0.15s;
+  }
+  .btn-primary:hover { opacity: 0.88; transform: translateY(-1px); }
+  .btn-primary:active { transform: translateY(0); }
+  #file-input { display: none; }
+
+  /* ── CONTROLS ── */
+  .controls-row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 24px;
+    flex-wrap: wrap;
+  }
+  .control-chip {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 8px 14px;
+    font-size: 0.8rem;
+    color: var(--text);
+  }
+  .control-chip label { color: var(--muted); white-space: nowrap; }
+  .control-chip select {
+    background: transparent;
+    border: none;
+    color: var(--text);
+    font-size: 0.8rem;
+    font-family: var(--font-ui);
+    cursor: pointer;
+    outline: none;
+  }
+  .control-chip select option { background: var(--card); }
+
+  .btn-action {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    background: var(--card);
+    border: 1px solid var(--border);
+    color: var(--text);
+    padding: 8px 16px;
+    border-radius: 8px;
+    font-size: 0.8rem;
+    font-weight: 500;
+    cursor: pointer;
+    font-family: var(--font-ui);
+    transition: border-color 0.2s, background 0.2s;
+  }
+  .btn-action:hover { border-color: var(--accent); background: rgba(124,107,255,0.08); }
+
+  .btn-run {
+    margin-left: auto;
+    background: linear-gradient(135deg, var(--accent), var(--accent2));
+    color: #fff;
+    border: none;
+    padding: 9px 20px;
+    border-radius: 8px;
+    font-size: 0.875rem;
+    font-weight: 600;
+    cursor: pointer;
+    font-family: var(--font-ui);
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    transition: opacity 0.2s;
+  }
+  .btn-run:hover { opacity: 0.85; }
+  .btn-run:disabled { opacity: 0.4; cursor: not-allowed; }
+
+  /* ── QUEUE GRID ── */
+  #queue-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+    gap: 18px;
+  }
+
+  .img-card {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    overflow: hidden;
+    transition: border-color 0.25s;
+    position: relative;
+  }
+  .img-card.processing { border-color: var(--accent); }
+  .img-card.done       { border-color: var(--success); }
+  .img-card.error-state { border-color: var(--danger); }
+
+  .card-preview {
+    position: relative;
+    height: 200px;
+    background: repeating-conic-gradient(#1e1e24 0% 25%, #28282f 0% 50%) 0 0 / 16px 16px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+  }
+  .card-preview img {
+    max-width: 100%;
+    max-height: 100%;
+    object-fit: contain;
+    display: block;
+  }
+
+  .card-overlay {
+    position: absolute; inset: 0;
+    background: rgba(12,12,15,0.75);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    font-size: 0.8rem;
+    color: var(--text);
+    backdrop-filter: blur(3px);
+    opacity: 0;
+    transition: opacity 0.2s;
+  }
+  .img-card.processing .card-overlay { opacity: 1; }
+
+  .spinner {
+    width: 32px; height: 32px;
+    border: 3px solid rgba(124,107,255,0.25);
+    border-top-color: var(--accent);
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  .card-body {
+    padding: 12px 14px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  .card-name {
+    font-size: 0.8rem;
+    color: var(--text);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    flex: 1;
+  }
+  .card-state-badge {
+    font-size: 0.7rem;
+    padding: 3px 8px;
+    border-radius: 20px;
+    font-weight: 600;
+    flex-shrink: 0;
+    white-space: nowrap;
+  }
+  .badge-pending    { background: rgba(107,107,128,0.15); color: var(--muted); }
+  .badge-processing { background: rgba(124,107,255,0.15); color: var(--accent); }
+  .badge-done       { background: rgba(62,207,142,0.15); color: var(--success); }
+  .badge-error      { background: rgba(255,95,95,0.15); color: var(--danger); }
+
+  .card-actions {
+    display: flex;
+    gap: 6px;
+    padding: 0 14px 12px;
+  }
+  .btn-dl {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 5px;
+    background: rgba(62,207,142,0.1);
+    border: 1px solid rgba(62,207,142,0.3);
+    color: var(--success);
+    padding: 7px;
+    border-radius: 7px;
+    font-size: 0.75rem;
+    font-weight: 600;
+    cursor: pointer;
+    font-family: var(--font-ui);
+    text-decoration: none;
+    transition: background 0.2s;
+  }
+  .btn-dl:hover { background: rgba(62,207,142,0.18); }
+  .btn-rm {
+    background: rgba(255,95,95,0.08);
+    border: 1px solid rgba(255,95,95,0.2);
+    color: var(--danger);
+    padding: 7px 10px;
+    border-radius: 7px;
+    font-size: 0.8rem;
+    cursor: pointer;
+    transition: background 0.2s;
+  }
+  .btn-rm:hover { background: rgba(255,95,95,0.15); }
+
+  /* ── DOWNLOAD ALL ── */
+  #dl-all-wrap {
+    margin-top: 32px;
+    display: flex;
+    justify-content: center;
+    display: none;
+  }
+  .btn-dl-all {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    background: linear-gradient(135deg, var(--success), #2ebc7a);
+    color: #fff;
+    border: none;
+    padding: 13px 28px;
+    border-radius: 10px;
+    font-size: 0.9rem;
+    font-weight: 700;
+    cursor: pointer;
+    font-family: var(--font-dis);
+    transition: opacity 0.2s, transform 0.15s;
+    letter-spacing: -0.2px;
+  }
+  .btn-dl-all:hover { opacity: 0.88; transform: translateY(-2px); }
+
+  /* ── FOOTER ── */
+  footer {
+    text-align: center;
+    padding: 28px;
+    border-top: 1px solid var(--border);
+    color: var(--muted);
+    font-size: 0.78rem;
+    margin-top: 48px;
+  }
+  footer a { color: var(--accent); text-decoration: none; }
+
+  /* ── RESPONSIVE ── */
+  @media (max-width: 600px) {
+    header { padding: 16px 18px; }
+    main { padding: 24px 14px 60px; }
+    .hero h2 { font-size: 1.6rem; }
+    #queue-grid { grid-template-columns: 1fr; }
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="logo-mark">✂️</div>
+  <h1>BG<span>Eraser</span></h1>
+  <span class="header-tag">AI · 100% locale</span>
+</header>
+
+<main>
+  <div class="hero">
+    <h2>Rimuovi lo sfondo<br>con l'<em>intelligenza artificiale</em></h2>
+    <p>Carica una o più immagini. Il modello AI gira interamente nel tuo browser — nessun dato viene inviato a server esterni.</p>
+  </div>
+
+  <div id="status-bar" class="loading">
+    <div class="status-dot"></div>
+    <span id="status-text">Caricamento del modello AI in corso…</span>
+    <span class="status-progress" id="status-progress"></span>
+  </div>
+
+  <div id="drop-zone">
+    <span class="drop-icon">🖼️</span>
+    <div class="drop-title">Trascina le immagini qui</div>
+    <div class="drop-sub">PNG · JPG · WEBP — più file contemporaneamente</div>
+    <button class="btn-primary" id="browse-btn">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+      Scegli file
+    </button>
+    <input type="file" id="file-input" accept="image/*" multiple>
+  </div>
+
+  <div class="controls-row" id="controls-row" style="display:none">
+    <div class="control-chip">
+      <label>Formato output</label>
+      <select id="fmt-select">
+        <option value="image/png">PNG (trasparenza)</option>
+        <option value="image/webp">WebP</option>
+      </select>
+    </div>
+    <button class="btn-action" id="clear-btn">
+      🗑 Svuota lista
+    </button>
+    <button class="btn-run" id="run-btn" disabled>
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+      Elabora tutte
+    </button>
+  </div>
+
+  <div id="queue-grid"></div>
+
+  <div id="dl-all-wrap">
+    <button class="btn-dl-all" id="dl-all-btn">
+      ⬇ Scarica tutto (.zip)
+    </button>
+  </div>
+</main>
+
+<footer>
+  Powered by <a href="https://github.com/huggingface/transformers.js" target="_blank">🤗 Transformers.js</a>
+  · Modello <a href="https://huggingface.co/briaai/RMBG-1.4" target="_blank">BRIA RMBG-1.4</a>
+  · Tutto gira nel tuo browser, zero upload.
+</footer>
+
+<!-- JSZip per il download multiplo -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+
+<script type="module">
+import {
+  AutoModel,
+  AutoProcessor,
+  RawImage,
+  env
+} from 'https://cdn.jsdelivr.net/npm/@huggingface/transformers@3.5.2/dist/transformers.min.js';
+
+// ── CONFIG ──────────────────────────────────────────────────────────────────
+env.allowLocalModels = false;
+const MODEL_ID = 'briaai/RMBG-1.4';
+
+// ── STATE ────────────────────────────────────────────────────────────────────
+let model = null, processor = null;
+let queue = []; // { id, file, name, state, origUrl, resultBlob }
+let modelReady = false;
+let isProcessing = false;
+
+// ── DOM ──────────────────────────────────────────────────────────────────────
+const statusBar    = document.getElementById('status-bar');
+const statusText   = document.getElementById('status-text');
+const statusProg   = document.getElementById('status-progress');
+const dropZone     = document.getElementById('drop-zone');
+const fileInput    = document.getElementById('file-input');
+const browseBtn    = document.getElementById('browse-btn');
+const controlsRow  = document.getElementById('controls-row');
+const runBtn       = document.getElementById('run-btn');
+const clearBtn     = document.getElementById('clear-btn');
+const fmtSelect    = document.getElementById('fmt-select');
+const queueGrid    = document.getElementById('queue-grid');
+const dlAllWrap    = document.getElementById('dl-all-wrap');
+const dlAllBtn     = document.getElementById('dl-all-btn');
+
+// ── LOAD MODEL ───────────────────────────────────────────────────────────────
+async function loadModel() {
+  try {
+    setStatus('loading', 'Inizializzazione modello AI (prima volta ~80 MB)…');
+
+    model = await AutoModel.from_pretrained(MODEL_ID, {
+      config: { model_type: 'custom' },
+      progress_callback: (info) => {
+        if (info.status === 'progress' && info.total) {
+          const pct = Math.round((info.loaded / info.total) * 100);
+          statusProg.textContent = `${pct}%`;
+        }
+      }
+    });
+
+    processor = await AutoProcessor.from_pretrained(MODEL_ID);
+
+    setStatus('ready', '✓ Modello pronto — trascina le immagini per iniziare');
+    statusProg.textContent = '';
+    modelReady = true;
+    updateRunBtn();
+  } catch (err) {
+    console.error(err);
+    setStatus('error', '✗ Errore caricamento modello: ' + err.message);
+  }
+}
+
+function setStatus(type, msg) {
+  statusBar.className = type;
+  statusText.textContent = msg;
+}
+
+// ── DROP ZONE ────────────────────────────────────────────────────────────────
+browseBtn.addEventListener('click', e => { e.stopPropagation(); fileInput.click(); });
+dropZone.addEventListener('click', () => fileInput.click());
+fileInput.addEventListener('change', () => addFiles([...fileInput.files]));
+
+dropZone.addEventListener('dragover', e => { e.preventDefault(); dropZone.classList.add('dragover'); });
+dropZone.addEventListener('dragleave', () => dropZone.classList.remove('dragover'));
+dropZone.addEventListener('drop', e => {
+  e.preventDefault();
+  dropZone.classList.remove('dragover');
+  addFiles([...e.dataTransfer.files].filter(f => f.type.startsWith('image/')));
+});
+
+function addFiles(files) {
+  files.forEach(file => {
+    if (!file.type.startsWith('image/')) return;
+    const id = crypto.randomUUID();
+    const origUrl = URL.createObjectURL(file);
+    queue.push({ id, file, name: file.name, state: 'pending', origUrl, resultBlob: null });
+    renderCard(queue[queue.length - 1]);
+  });
+  if (files.length) {
+    controlsRow.style.display = 'flex';
+    updateRunBtn();
+  }
+}
+
+// ── RENDER CARD ──────────────────────────────────────────────────────────────
+function renderCard(item) {
+  const existing = document.getElementById('card-' + item.id);
+  if (existing) { updateCard(item); return; }
+
+  const card = document.createElement('div');
+  card.className = 'img-card';
+  card.id = 'card-' + item.id;
+  card.innerHTML = `
+    <div class="card-preview">
+      <img src="${item.origUrl}" alt="${item.name}" id="preview-${item.id}">
+      <div class="card-overlay">
+        <div class="spinner"></div>
+        <span id="overlay-text-${item.id}">Elaborazione…</span>
+      </div>
+    </div>
+    <div class="card-body">
+      <span class="card-name" title="${item.name}">${item.name}</span>
+      <span class="card-state-badge badge-pending" id="badge-${item.id}">In attesa</span>
+    </div>
+    <div class="card-actions" id="actions-${item.id}" style="display:none">
+      <a class="btn-dl" id="dl-${item.id}" download>
+        ⬇ Scarica PNG
+      </a>
+      <button class="btn-rm" data-id="${item.id}">✕</button>
+    </div>
+  `;
+  card.querySelector('.btn-rm').addEventListener('click', () => removeItem(item.id));
+  queueGrid.appendChild(card);
+}
+
+function updateCard(item) {
+  const card = document.getElementById('card-' + item.id);
+  if (!card) return;
+
+  card.className = 'img-card ' + (item.state === 'processing' ? 'processing' : item.state === 'done' ? 'done' : item.state === 'error' ? 'error-state' : '');
+
+  const badge = document.getElementById('badge-' + item.id);
+  const actions = document.getElementById('actions-' + item.id);
+  const preview = document.getElementById('preview-' + item.id);
+
+  const labels = { pending: ['badge-pending','In attesa'], processing: ['badge-processing','In corso'], done: ['badge-done','✓ Pronto'], error: ['badge-error','Errore'] };
+  const [cls, txt] = labels[item.state] || labels.pending;
+  badge.className = 'card-state-badge ' + cls;
+  badge.textContent = txt;
+
+  if (item.state === 'done' && item.resultBlob) {
+    const url = URL.createObjectURL(item.resultBlob);
+    preview.src = url;
+    actions.style.display = 'flex';
+    const dlBtn = document.getElementById('dl-' + item.id);
+    dlBtn.href = url;
+    const ext = fmtSelect.value === 'image/webp' ? 'webp' : 'png';
+    dlBtn.download = item.name.replace(/\.[^.]+$/, '') + '_nobg.' + ext;
+    dlBtn.textContent = `⬇ Scarica ${ext.toUpperCase()}`;
+  }
+}
+
+function removeItem(id) {
+  queue = queue.filter(i => i.id !== id);
+  document.getElementById('card-' + id)?.remove();
+  updateRunBtn();
+  updateDlAll();
+}
+
+clearBtn.addEventListener('click', () => {
+  queue = [];
+  queueGrid.innerHTML = '';
+  controlsRow.style.display = 'none';
+  dlAllWrap.style.display = 'none';
+  fileInput.value = '';
+});
+
+// ── PROCESS ──────────────────────────────────────────────────────────────────
+runBtn.addEventListener('click', processAll);
+
+async function processAll() {
+  if (!modelReady || isProcessing) return;
+  isProcessing = true;
+  runBtn.disabled = true;
+
+  const pending = queue.filter(i => i.state === 'pending' || i.state === 'error');
+  let done = 0;
+
+  for (const item of pending) {
+    item.state = 'processing';
+    updateCard(item);
+    setStatus('loading', `Rimozione sfondo: ${item.name} (${done + 1}/${pending.length})`);
+
+    try {
+      const resultBlob = await removeBackground(item.file);
+      item.resultBlob = resultBlob;
+      item.state = 'done';
+    } catch (err) {
+      console.error(err);
+      item.state = 'error';
+    }
+    updateCard(item);
+    done++;
+  }
+
+  isProcessing = false;
+  setStatus('ready', `✓ Completate ${done} immagini`);
+  updateRunBtn();
+  updateDlAll();
+}
+
+async function removeBackground(file) {
+  const img = await RawImage.fromURL(URL.createObjectURL(file));
+  const { pixel_values } = await processor(img);
+  const { output } = await model({ input: pixel_values });
+  const mask = await RawImage.fromTensor(output[0].mul(255).to('uint8')).resize(img.width, img.height);
+
+  // Compose on canvas with alpha
+  const canvas = document.createElement('canvas');
+  canvas.width = img.width;
+  canvas.height = img.height;
+  const ctx = canvas.getContext('2d');
+  ctx.drawImage(img.toCanvas(), 0, 0);
+
+  const imgData = ctx.getImageData(0, 0, img.width, img.height);
+  const maskData = mask.data;
+  for (let i = 0; i < maskData.length; i++) {
+    imgData.data[i * 4 + 3] = maskData[i];
+  }
+  ctx.putImageData(imgData, 0, 0);
+
+  return await canvasToBlob(canvas, fmtSelect.value);
+}
+
+function canvasToBlob(canvas, type) {
+  return new Promise(res => canvas.toBlob(res, type, 1.0));
+}
+
+// ── DOWNLOAD ALL ─────────────────────────────────────────────────────────────
+function updateDlAll() {
+  const hasDone = queue.some(i => i.state === 'done');
+  dlAllWrap.style.display = hasDone ? 'flex' : 'none';
+}
+
+dlAllBtn.addEventListener('click', async () => {
+  const done = queue.filter(i => i.state === 'done' && i.resultBlob);
+  if (!done.length) return;
+  const zip = new JSZip();
+  const ext = fmtSelect.value === 'image/webp' ? 'webp' : 'png';
+  for (const item of done) {
+    const buf = await item.resultBlob.arrayBuffer();
+    zip.file(item.name.replace(/\.[^.]+$/, '') + '_nobg.' + ext, buf);
+  }
+  const blob = await zip.generateAsync({ type: 'blob' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'bg-rimosso.zip';
+  a.click();
+});
+
+// ── HELPERS ──────────────────────────────────────────────────────────────────
+function updateRunBtn() {
+  const hasPending = queue.some(i => i.state === 'pending' || i.state === 'error');
+  runBtn.disabled = !modelReady || !hasPending || isProcessing;
+}
+
+// ── BOOT ────────────────────────────────────────────────────────────────────
+loadModel();
+</script>
+</body>
+</html>

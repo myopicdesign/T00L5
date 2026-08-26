@@ -1,0 +1,943 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>PNG Wobble</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=DM+Sans:wght@300;400;500&display=swap');
+
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --bg: #1a1a1a;
+    --surface: #242424;
+    --surface2: #2e2e2e;
+    --border: #383838;
+    --text: #e8e8e8;
+    --muted: #888;
+    --accent: #f0c040;
+    --accent2: #60c0f0;
+    --danger: #f06060;
+    --radius: 8px;
+    --panel: 240px;
+  }
+
+  html, body {
+    height: 100%;
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'DM Sans', sans-serif;
+    overflow: hidden;
+    user-select: none;
+  }
+
+  #app {
+    display: flex;
+    height: 100vh;
+    width: 100vw;
+  }
+
+  /* ── SIDEBAR ── */
+  #sidebar {
+    width: var(--panel);
+    flex-shrink: 0;
+    background: var(--surface);
+    border-right: 1px solid var(--border);
+    display: flex;
+    flex-direction: column;
+    overflow-y: auto;
+    overflow-x: hidden;
+  }
+
+  .logo {
+    padding: 18px 16px 12px;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-shrink: 0;
+  }
+  .logo-text { font-family: 'DM Mono', monospace; font-size: 13px; font-weight: 500; letter-spacing: 0.04em; color: var(--accent); }
+  .logo-sub  { font-size: 10px; color: var(--muted); letter-spacing: 0.08em; text-transform: uppercase; }
+
+  .section {
+    padding: 14px 16px;
+    border-bottom: 1px solid var(--border);
+    flex-shrink: 0;
+  }
+  .section-label {
+    font-size: 9px;
+    font-weight: 500;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--muted);
+    margin-bottom: 10px;
+  }
+
+  /* Slider */
+  .size-display {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 8px;
+  }
+  .size-val {
+    font-family: 'DM Mono', monospace;
+    font-size: 22px;
+    font-weight: 400;
+    color: var(--text);
+    line-height: 1;
+  }
+  .size-unit { font-size: 11px; color: var(--muted); }
+
+  input[type=range] {
+    -webkit-appearance: none;
+    width: 100%;
+    height: 3px;
+    background: var(--border);
+    border-radius: 2px;
+    outline: none;
+    cursor: pointer;
+    margin-top: 4px;
+  }
+  input[type=range]::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    width: 14px; height: 14px;
+    background: var(--accent);
+    border-radius: 50%;
+    cursor: pointer;
+  }
+
+  /* Duration inputs */
+  .dur-field label { font-size: 10px; color: var(--muted); display: block; margin-bottom: 4px; }
+  .dur-field input[type=number] {
+    width: 100%;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    color: var(--text);
+    font-family: 'DM Mono', monospace;
+    font-size: 14px;
+    padding: 6px 8px;
+    outline: none;
+    transition: border-color 0.15s;
+  }
+  .dur-field input[type=number]:focus { border-color: var(--accent); }
+
+  /* Buttons */
+  .btn-group { display: flex; flex-direction: column; gap: 6px; }
+  .btn {
+    width: 100%;
+    padding: 10px 12px;
+    border-radius: var(--radius);
+    border: none;
+    font-family: 'DM Sans', sans-serif;
+    font-size: 12px;
+    font-weight: 500;
+    letter-spacing: 0.03em;
+    cursor: pointer;
+    transition: opacity 0.15s, transform 0.1s;
+    display: flex; align-items: center; justify-content: center; gap: 6px;
+  }
+  .btn:active { transform: scale(0.97); }
+  .btn:disabled { opacity: 0.35; cursor: not-allowed; transform: none; }
+  .btn-primary  { background: var(--accent);  color: #1a1200; }
+  .btn-accent2  { background: var(--accent2); color: #001a2a; }
+  .btn-secondary{ background: var(--surface2); color: var(--text); border: 1px solid var(--border); }
+
+  /* Status */
+  #status-bar {
+    margin-top: auto;
+    padding: 10px 16px;
+    border-top: 1px solid var(--border);
+    font-family: 'DM Mono', monospace;
+    font-size: 10px;
+    color: var(--muted);
+    min-height: 36px;
+    display: flex; align-items: center;
+    flex-shrink: 0;
+  }
+  #status-bar.busy { color: var(--accent2); }
+  #status-bar.done { color: #60f060; }
+  #status-bar.err  { color: var(--danger); }
+
+  /* ── CANVAS AREA ── */
+  #canvas-wrap {
+    flex: 1;
+    position: relative;
+    overflow: hidden;
+    background:
+      radial-gradient(ellipse at 20% 20%, rgba(240,192,64,0.03) 0%, transparent 60%),
+      radial-gradient(ellipse at 80% 80%, rgba(96,192,240,0.03) 0%, transparent 60%),
+      #1a1a1a;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  /* subtle grid */
+  #canvas-wrap::before {
+    content: '';
+    position: absolute; inset: 0;
+    background-image:
+      linear-gradient(rgba(255,255,255,0.015) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(255,255,255,0.015) 1px, transparent 1px);
+    background-size: 32px 32px;
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  /* Drop zone */
+  #drop-zone {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 12px;
+    z-index: 2;
+    cursor: pointer;
+    transition: opacity 0.3s;
+  }
+  #drop-zone.hidden { opacity: 0; pointer-events: none; }
+
+  .drop-icon {
+    width: 56px; height: 56px;
+    border: 1.5px dashed var(--border);
+    border-radius: 16px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--muted);
+    transition: border-color 0.2s, color 0.2s;
+  }
+  #drop-zone:hover .drop-icon,
+  #drop-zone.dragover .drop-icon {
+    border-color: var(--accent);
+    color: var(--accent);
+  }
+  #drop-zone.dragover { background: rgba(240,192,64,0.04); }
+
+  .drop-title {
+    font-size: 13px;
+    color: var(--text);
+    font-weight: 500;
+  }
+  .drop-sub {
+    font-size: 11px;
+    color: var(--muted);
+  }
+
+  /* Preview canvas */
+  #wobble-canvas {
+    position: absolute;
+    inset: 0;
+    z-index: 1;
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity 0.2s;
+  }
+  #wobble-canvas.visible { opacity: 1; }
+
+  /* Image info badge */
+  #img-info {
+    position: absolute;
+    bottom: 14px;
+    right: 16px;
+    z-index: 3;
+    font-family: 'DM Mono', monospace;
+    font-size: 10px;
+    color: var(--muted);
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 20px;
+    padding: 4px 10px;
+    display: none;
+  }
+
+  /* Progress */
+  #export-progress {
+    position: absolute;
+    bottom: 0; left: 0; right: 0;
+    height: 3px;
+    background: var(--border);
+    display: none;
+    z-index: 10;
+  }
+  #export-progress-bar {
+    height: 100%;
+    background: var(--accent2);
+    width: 0%;
+    transition: width 0.1s;
+  }
+
+  /* mode badge top right */
+  #mode-badge {
+    position: absolute;
+    top: 14px; right: 16px;
+    z-index: 3;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 20px;
+    font-family: 'DM Mono', monospace;
+    font-size: 10px;
+    color: var(--muted);
+    padding: 4px 10px;
+    letter-spacing: 0.08em;
+    display: none;
+  }
+
+  #dl-link { display: none; }
+
+  /* range label row */
+  .range-label-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 6px;
+  }
+  .range-label-row span { font-size: 11px; color: var(--muted); }
+
+  @media (max-width: 640px) {
+    :root { --panel: 190px; }
+  }
+</style>
+</head>
+<body>
+<div id="app">
+
+  <!-- ── SIDEBAR ── -->
+  <div id="sidebar">
+
+    <div class="logo">
+      <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
+        <rect x="3" y="3" width="14" height="14" rx="2" stroke="#f0c040" stroke-width="1.6" fill="none"/>
+        <path d="M6 10 Q8 7 10 10 Q12 13 14 10" stroke="#60c0f0" stroke-width="1.2" fill="none" stroke-linecap="round"/>
+      </svg>
+      <div>
+        <div class="logo-text">WOBBLE</div>
+        <div class="logo-sub">PNG Animator</div>
+      </div>
+    </div>
+
+    <!-- Intensità tremolio -->
+    <div class="section">
+      <div class="section-label">Intensità tremolio</div>
+      <div class="range-label-row">
+        <span>Nessuno</span>
+        <span class="size-val" id="wobble-label">3</span>
+        <span>Forte</span>
+      </div>
+      <input type="range" id="wobble-range" min="1" max="20" value="3" step="1">
+    </div>
+
+    <!-- Scala tremolio -->
+    <div class="section">
+      <div class="section-label">Scala tremolio</div>
+      <div class="range-label-row">
+        <span>Fine</span>
+        <span class="size-val" id="scale-label">4</span>
+        <span>Ampio</span>
+      </div>
+      <input type="range" id="scale-range" min="1" max="20" value="4" step="1">
+      <div style="font-size:10px;color:var(--muted);margin-top:6px">Piccolo = nervoso · Grande = ondulato</div>
+    </div>
+
+    <!-- Durata -->
+    <div class="section">
+      <div class="section-label">Durata GIF</div>
+      <div class="dur-field" style="margin-bottom:10px">
+        <label>Durata totale (sec)</label>
+        <input type="number" id="dur-input" min="0.5" max="30" value="3" step="0.5">
+      </div>
+      <div class="dur-field">
+        <label>FPS</label>
+        <input type="number" id="fps-input" min="6" max="30" value="15" step="1">
+      </div>
+      <div style="font-size:10px;color:var(--muted);margin-top:8px" id="frame-count-label">→ ~45 frame</div>
+    </div>
+
+    <!-- Azioni -->
+    <div class="section">
+      <div class="section-label">Azioni</div>
+      <div class="btn-group">
+        <button class="btn btn-primary" id="btn-load">
+          <svg width="12" height="12" viewBox="0 0 12 12" fill="none"><rect x="1" y="1" width="10" height="10" rx="1.5" stroke="currentColor" stroke-width="1.4"/><path d="M4 5l2-2 2 2M6 3v5" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          Carica PNG
+        </button>
+        <button class="btn btn-accent2" id="btn-export" disabled>
+          <svg width="12" height="12" viewBox="0 0 12 12" fill="none"><path d="M6 1v7M3 6l3 3 3-3M1 10h10" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          Esporta GIF
+        </button>
+        <button class="btn btn-secondary" id="btn-reset" disabled>
+          <svg width="12" height="12" viewBox="0 0 12 12" fill="none"><path d="M2 10L10 2M2 2l8 8" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+          Rimuovi immagine
+        </button>
+      </div>
+    </div>
+
+    <div id="status-bar">Carica un PNG per iniziare</div>
+  </div>
+
+  <!-- ── CANVAS AREA ── -->
+  <div id="canvas-wrap">
+    <div id="drop-zone">
+      <div class="drop-icon">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
+          <rect x="3" y="3" width="18" height="18" rx="3" stroke="currentColor" stroke-width="1.5"/>
+          <path d="M3 16l5-5 4 4 3-3 6 5" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/>
+          <circle cx="8.5" cy="8.5" r="1.5" fill="currentColor"/>
+        </svg>
+      </div>
+      <div class="drop-title">Trascina il tuo PNG qui</div>
+      <div class="drop-sub">oppure clicca per sfogliare</div>
+    </div>
+
+    <canvas id="wobble-canvas"></canvas>
+    <div id="img-info"></div>
+    <div id="mode-badge">LIVE</div>
+    <div id="export-progress"><div id="export-progress-bar"></div></div>
+  </div>
+
+</div>
+
+<input type="file" id="file-input" accept="image/png,image/jpeg,image/webp" style="display:none">
+<a id="dl-link"></a>
+
+<script>
+/* ══════════════════════════════════════════════════════════════
+   PNG WOBBLE ANIMATOR
+   ══════════════════════════════════════════════════════════════ */
+
+const state = {
+  img: null,          // HTMLImageElement
+  imgW: 0, imgH: 0,  // natural dimensions
+  wobbleStrength: 3,
+  wobbleScale: 4,     // strip size: small=fine jitter, large=big waves
+  duration: 3,        // seconds
+  fps: 15,
+  animating: false,
+  exporting: false,
+};
+
+// DOM
+const wrap        = document.getElementById('canvas-wrap');
+const wobbleCanvas= document.getElementById('wobble-canvas');
+const wCtx        = wobbleCanvas.getContext('2d');
+const dropZone    = document.getElementById('drop-zone');
+const fileInput   = document.getElementById('file-input');
+const btnLoad     = document.getElementById('btn-load');
+const btnExport   = document.getElementById('btn-export');
+const btnReset    = document.getElementById('btn-reset');
+const statusBar   = document.getElementById('status-bar');
+const modeBadge   = document.getElementById('mode-badge');
+const imgInfo     = document.getElementById('img-info');
+const wobbleRange = document.getElementById('wobble-range');
+const wobbleLabel = document.getElementById('wobble-label');
+const scaleRange  = document.getElementById('scale-range');
+const scaleLabel  = document.getElementById('scale-label');
+const durInput    = document.getElementById('dur-input');
+const fpsInput    = document.getElementById('fps-input');
+const frameCountLabel = document.getElementById('frame-count-label');
+const progressWrap= document.getElementById('export-progress');
+const progressBar = document.getElementById('export-progress-bar');
+const dlLink      = document.getElementById('dl-link');
+
+// ── Resize canvas to fill wrap
+function resizeCanvas() {
+  const dpr = window.devicePixelRatio || 1;
+  const w = wrap.clientWidth, h = wrap.clientHeight;
+  wobbleCanvas.width  = Math.round(w * dpr);
+  wobbleCanvas.height = Math.round(h * dpr);
+  wobbleCanvas.style.width  = w + 'px';
+  wobbleCanvas.style.height = h + 'px';
+  wCtx.scale(dpr, dpr);
+  if (state.img) renderWobbleFrame();
+}
+window.addEventListener('resize', () => {
+  // Re-scale properly on resize
+  const dpr = window.devicePixelRatio || 1;
+  const w = wrap.clientWidth, h = wrap.clientHeight;
+  wobbleCanvas.width  = Math.round(w * dpr);
+  wobbleCanvas.height = Math.round(h * dpr);
+  wobbleCanvas.style.width  = w + 'px';
+  wobbleCanvas.style.height = h + 'px';
+  wCtx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  if (state.img) renderWobbleFrame();
+});
+resizeCanvas();
+
+// ── Controls
+wobbleRange.addEventListener('input', () => {
+  state.wobbleStrength = +wobbleRange.value;
+  wobbleLabel.textContent = state.wobbleStrength;
+});
+scaleRange.addEventListener('input', () => {
+  state.wobbleScale = +scaleRange.value;
+  scaleLabel.textContent = state.wobbleScale;
+});
+
+function updateFrameLabel() {
+  const frames = Math.ceil(state.duration * state.fps);
+  frameCountLabel.textContent = `→ ~${frames} frame`;
+}
+
+durInput.addEventListener('input', () => {
+  const v = parseFloat(durInput.value);
+  if (!isNaN(v) && v > 0) { state.duration = v; updateFrameLabel(); }
+});
+fpsInput.addEventListener('input', () => {
+  const v = parseInt(fpsInput.value);
+  if (!isNaN(v) && v > 0) { state.fps = v; updateFrameLabel(); }
+});
+
+btnLoad.addEventListener('click', () => fileInput.click());
+fileInput.addEventListener('change', () => {
+  if (fileInput.files[0]) loadImage(fileInput.files[0]);
+});
+
+btnReset.addEventListener('click', resetImage);
+
+btnExport.addEventListener('click', () => {
+  if (!state.img || state.exporting) return;
+  exportGIF();
+});
+
+// ── Drag & drop
+dropZone.addEventListener('click', () => fileInput.click());
+wrap.addEventListener('dragover', e => { e.preventDefault(); dropZone.classList.add('dragover'); });
+wrap.addEventListener('dragleave', () => dropZone.classList.remove('dragover'));
+wrap.addEventListener('drop', e => {
+  e.preventDefault();
+  dropZone.classList.remove('dragover');
+  const f = e.dataTransfer.files[0];
+  if (f && f.type.startsWith('image/')) loadImage(f);
+});
+
+// ── Load image
+function loadImage(file) {
+  const url = URL.createObjectURL(file);
+  const img = new Image();
+  img.onload = () => {
+    state.img = img;
+    state.imgW = img.naturalWidth;
+    state.imgH = img.naturalHeight;
+    URL.revokeObjectURL(url);
+
+    dropZone.classList.add('hidden');
+    wobbleCanvas.classList.add('visible');
+    modeBadge.style.display = 'block';
+    imgInfo.style.display   = 'block';
+    imgInfo.textContent     = `${state.imgW} × ${state.imgH}`;
+    btnExport.disabled = false;
+    btnReset.disabled  = false;
+    setStatus(`Immagine caricata — tremolio attivo`, '');
+    startWobbleLoop();
+  };
+  img.onerror = () => setStatus('Errore nel caricamento', 'err');
+  img.src = url;
+}
+
+function resetImage() {
+  state.img = null;
+  stopWobbleLoop();
+  wCtx.clearRect(0, 0, wobbleCanvas.width, wobbleCanvas.height);
+  wobbleCanvas.classList.remove('visible');
+  dropZone.classList.remove('hidden');
+  modeBadge.style.display = 'none';
+  imgInfo.style.display   = 'none';
+  btnExport.disabled = true;
+  btnReset.disabled  = true;
+  setStatus('Carica un PNG per iniziare', '');
+}
+
+// ── Status
+function setStatus(msg, type = '') {
+  statusBar.textContent = msg;
+  statusBar.className = type;
+}
+
+// ── Compute draw rect (contain image in canvas)
+function getDrawRect() {
+  const cw = wrap.clientWidth;
+  const ch = wrap.clientHeight;
+  const pad = 40;
+  const maxW = cw - pad * 2;
+  const maxH = ch - pad * 2;
+  const scale = Math.min(maxW / state.imgW, maxH / state.imgH, 1);
+  const dw = state.imgW * scale;
+  const dh = state.imgH * scale;
+  const dx = (cw - dw) / 2;
+  const dy = (ch - dh) / 2;
+  return { dx, dy, dw, dh };
+}
+
+// ── Wobble rendering: draw image with per-pixel/slice distortion
+// Technique: slice image into thin horizontal strips, offset each strip randomly
+function renderWobbleFrame(wobbleAmt) {
+  if (!state.img) return;
+  const amt = wobbleAmt !== undefined ? wobbleAmt : state.wobbleStrength;
+  const { dx, dy, dw, dh } = getDrawRect();
+  const cw = wrap.clientWidth;
+  const ch = wrap.clientHeight;
+
+  wCtx.clearRect(0, 0, cw, ch);
+
+  if (amt === 0) {
+    wCtx.drawImage(state.img, dx, dy, dw, dh);
+    return;
+  }
+
+  // Slice into strips — wobbleScale controls strip height in px
+  // scale=1 → many tiny strips (fine jitter), scale=20 → few big strips (waves)
+  const stripPx = state.wobbleScale * 2; // map 1–20 → 2–40px strip height
+  const sliceCount = Math.max(2, Math.floor(dh / stripPx));
+  const sliceH = dh / sliceCount;
+  const srcSliceH = state.imgH / sliceCount;
+
+  for (let i = 0; i < sliceCount; i++) {
+    const jx = (Math.random() - 0.5) * amt * 1.2;
+    const jy = (Math.random() - 0.5) * amt * 0.4;
+
+    const srcY  = i * srcSliceH;
+    const destY = dy + i * sliceH + jy;
+    const destX = dx + jx;
+
+    wCtx.drawImage(
+      state.img,
+      0, srcY, state.imgW, srcSliceH,
+      destX, destY, dw, sliceH + 0.5 // +0.5 to avoid gaps
+    );
+  }
+}
+
+// ── Live wobble loop
+let wobbleRAF = null;
+function startWobbleLoop() {
+  if (wobbleRAF) return;
+  function loop() {
+    if (!state.img || state.exporting) { wobbleRAF = requestAnimationFrame(loop); return; }
+    renderWobbleFrame(state.wobbleStrength);
+    wobbleRAF = requestAnimationFrame(loop);
+  }
+  wobbleRAF = requestAnimationFrame(loop);
+}
+function stopWobbleLoop() {
+  if (wobbleRAF) { cancelAnimationFrame(wobbleRAF); wobbleRAF = null; }
+}
+
+/* ══════════════════════════════════════════════════════════════
+   GIF EXPORT — transparent background, same encoder as sketch tool
+   ══════════════════════════════════════════════════════════════ */
+
+function exportGIF() {
+  if (!state.img) return;
+
+  state.exporting = true;
+  btnExport.disabled = true;
+  btnReset.disabled  = true;
+  progressWrap.style.display = 'block';
+  progressBar.style.width = '0%';
+
+  const FPS        = state.fps;
+  const duration   = state.duration;
+  const frameCount = Math.ceil(duration * FPS);
+  const frameMs    = 1000 / FPS;
+
+  // Export at natural image size (cap at 800px wide)
+  const MAX_W = 800;
+  const rawW  = state.imgW;
+  const rawH  = state.imgH;
+  const scale = rawW > MAX_W ? MAX_W / rawW : 1;
+  const W = Math.round(rawW * scale);
+  const H = Math.round(rawH * scale);
+
+  const stripPx    = state.wobbleScale * 2;
+  const sliceCount = Math.max(2, Math.floor(H / stripPx));
+  const sliceH     = H / sliceCount;
+  const srcSliceH  = rawH / sliceCount;
+
+  const offCanvas = document.createElement('canvas');
+  offCanvas.width = W; offCanvas.height = H;
+  const offCtx = offCanvas.getContext('2d', { alpha: true });
+
+  // Seeded random for reproducibility
+  function seededRand(seed) {
+    let s = seed | 0;
+    s = Math.imul(48271, s) | 0;
+    s = Math.imul(2654435761, s ^ (s >>> 16)) | 0;
+    return ((s >>> 0) / 0xFFFFFFFF) - 0.5;
+  }
+
+  function renderFrame(fi) {
+    const seedBase = (fi * 1999) ^ 0xBEEF;
+    let seedCtr = seedBase;
+    // amt matches the live preview: wobbleStrength is in screen-px units.
+    // In the export canvas W×H maps the image at 1:1 (or capped), so we
+    // multiply by the same display scale the live preview uses (dw/rawW),
+    // which equals the export scale. Use wobbleStrength directly — same feel.
+    const amt = state.wobbleStrength;
+
+    offCtx.clearRect(0, 0, W, H);
+
+    for (let i = 0; i < sliceCount; i++) {
+      const jx = seededRand(seedCtr++) * amt * 1.2;
+      const jy = seededRand(seedCtr++) * amt * 0.4;
+
+      const srcY  = i * srcSliceH;
+      const destY = i * sliceH + jy;
+      const destX = jx;
+
+      offCtx.drawImage(
+        state.img,
+        0, srcY, rawW, srcSliceH,
+        destX, destY, W, sliceH + 0.5
+      );
+    }
+  }
+
+  setStatus('Rendering frame…', 'busy');
+
+  const gif = new GifEncoder(W, H, { fps: FPS, repeat: 0 });
+  let fi = 0;
+
+  function processNext() {
+    if (fi < frameCount) {
+      renderFrame(fi);
+      gif.addFrame(offCanvas);
+      progressBar.style.width = ((fi / frameCount) * 90) + '%';
+      setStatus(`Rendering: ${fi + 1}/${frameCount} frame…`, 'busy');
+      fi++;
+      setTimeout(processNext, 0);
+    } else {
+      progressBar.style.width = '92%';
+      setStatus('Encoding GIF…', 'busy');
+      setTimeout(() => {
+        try {
+          const blob = gif.encode();
+          progressBar.style.width = '100%';
+          setStatus('GIF pronta! Download avviato.', 'done');
+          btnExport.disabled = false;
+          btnReset.disabled  = false;
+          state.exporting    = false;
+          setTimeout(() => { progressWrap.style.display = 'none'; progressBar.style.width = '0%'; }, 2000);
+          const url = URL.createObjectURL(blob);
+          dlLink.href = url;
+          dlLink.download = `wobble-${Date.now()}.gif`;
+          dlLink.click();
+          setTimeout(() => URL.revokeObjectURL(url), 8000);
+        } catch(e) {
+          setStatus('Errore: ' + e.message, 'err');
+          btnExport.disabled = false;
+          btnReset.disabled  = false;
+          state.exporting    = false;
+          progressWrap.style.display = 'none';
+        }
+      }, 0);
+    }
+  }
+
+  setTimeout(processNext, 50);
+}
+
+/* ══════════════════════════════════════════════════════════════
+   INLINE GIF ENCODER — with transparency (index 0 = transparent)
+   ══════════════════════════════════════════════════════════════ */
+
+class GifEncoder {
+  constructor(w, h, { fps = 15, repeat = 0 } = {}) {
+    this.w = w; this.h = h;
+    this.delay = Math.round(100 / fps);
+    this.repeat = repeat;
+    this.chunks = [];
+    this._palette = null;
+    this._indexFn = null;
+    this._headerWritten = false;
+  }
+
+  _writeHeader(canvas) {
+    const W = this.w, H = this.h;
+    const tmpC = document.createElement('canvas');
+    tmpC.width = W; tmpC.height = H;
+    const tmpX = tmpC.getContext('2d');
+    tmpX.drawImage(canvas, 0, 0, W, H);
+    const img = tmpX.getImageData(0, 0, W, H);
+    const { palette, indexFn } = buildPalette(img);
+    this._palette = palette;
+    this._indexFn = indexFn;
+
+    const bw = new ChunkWriter();
+    bw.str('GIF89a');
+    bw.u16(W); bw.u16(H);
+    bw.u8(0xF7); bw.u8(0); bw.u8(0);
+    for (let i = 0; i < 256; i++) {
+      const c = palette[i] || [0,0,0];
+      bw.u8(c[0]); bw.u8(c[1]); bw.u8(c[2]);
+    }
+    if (this.repeat >= 0) {
+      bw.u8(0x21); bw.u8(0xFF); bw.u8(0x0B);
+      bw.str('NETSCAPE2.0');
+      bw.u8(3); bw.u8(1); bw.u16(this.repeat); bw.u8(0);
+    }
+    this.chunks.push(bw.flush());
+    this._headerWritten = true;
+    this._encodeFrameData(img);
+  }
+
+  addFrame(canvas) {
+    const W = this.w, H = this.h;
+    if (!this._headerWritten) { this._writeHeader(canvas); return; }
+    const tmpC = document.createElement('canvas');
+    tmpC.width = W; tmpC.height = H;
+    const tmpX = tmpC.getContext('2d');
+    tmpX.drawImage(canvas, 0, 0, W, H);
+    const img = tmpX.getImageData(0, 0, W, H);
+    this._encodeFrameData(img);
+  }
+
+  _encodeFrameData(imgData) {
+    const W = this.w, H = this.h;
+    const bw = new ChunkWriter();
+    // GCE with transparency flag, disposal = restore to bg (2)
+    bw.u8(0x21); bw.u8(0xF9); bw.u8(4);
+    bw.u8(0x09); // disposal=2, transparent=1
+    bw.u16(this.delay);
+    bw.u8(0); // transparent color index = 0
+    bw.u8(0);
+    // Image descriptor
+    bw.u8(0x2C);
+    bw.u16(0); bw.u16(0); bw.u16(W); bw.u16(H);
+    bw.u8(0);
+    const indices = new Uint8Array(W * H);
+    const data = imgData.data;
+    const indexFn = this._indexFn;
+    for (let i = 0; i < W * H; i++) {
+      indices[i] = indexFn(data[i*4], data[i*4+1], data[i*4+2], data[i*4+3]);
+    }
+    const lzw = lzwEncode(indices, 8);
+    bw.u8(8);
+    let pos = 0;
+    while (pos < lzw.length) {
+      const block = Math.min(255, lzw.length - pos);
+      bw.u8(block);
+      for (let i = 0; i < block; i++) bw.u8(lzw[pos++]);
+    }
+    bw.u8(0);
+    this.chunks.push(bw.flush());
+  }
+
+  encode() {
+    const bw = new ChunkWriter();
+    bw.u8(0x3B);
+    this.chunks.push(bw.flush());
+    return new Blob(this.chunks, { type: 'image/gif' });
+  }
+}
+
+function buildPalette(imgData) {
+  const data = imgData.data;
+  const n = data.length >> 2;
+  const counts = new Int32Array(32768);
+  for (let i = 0; i < n; i++) {
+    if (data[i*4+3] < 128) continue;
+    counts[((data[i*4]>>3) << 10) | ((data[i*4+1]>>3) << 5) | (data[i*4+2]>>3)]++;
+  }
+  const entries = [];
+  for (let k = 0; k < 32768; k++) if (counts[k] > 0) entries.push(k);
+  entries.sort((a, b) => counts[b] - counts[a]);
+
+  const palette = [[0,0,0]]; // index 0 = transparent
+  for (let i = 0; i < Math.min(255, entries.length); i++) {
+    const k = entries[i];
+    palette.push([(k >> 10) << 3, ((k >> 5) & 31) << 3, (k & 31) << 3]);
+  }
+  while (palette.length < 256) palette.push([0,0,0]);
+
+  const lut = new Uint8Array(32768);
+  for (let i = 1; i < palette.length; i++) {
+    const c = palette[i];
+    lut[((c[0]>>3) << 10) | ((c[1]>>3) << 5) | (c[2]>>3)] = i;
+  }
+  const indexFn = (r, g, b, a) => {
+    if (a < 128) return 0;
+    const idx = lut[((r>>3) << 10) | ((g>>3) << 5) | (b>>3)];
+    return idx === 0 ? 1 : idx;
+  };
+  return { palette, indexFn };
+}
+
+function lzwEncode(indices, minCode) {
+  const clearCode = 1 << minCode;
+  const eofCode   = clearCode + 1;
+  const MAX_CODE  = 4096;
+  const HT_SIZE   = 1 << 14;
+  const HT_MASK   = HT_SIZE - 1;
+  const htKey = new Int32Array(HT_SIZE).fill(-1);
+  const htVal = new Int32Array(HT_SIZE);
+
+  let codeSize = minCode + 1;
+  let nextCode = eofCode + 1;
+  const out = new Uint8Array(indices.length * 2 + 1024);
+  let outPos = 0, bitBuf = 0, bitLen = 0;
+
+  const emit = (code) => {
+    bitBuf |= code << bitLen;
+    bitLen += codeSize;
+    while (bitLen >= 8) { out[outPos++] = bitBuf & 0xFF; bitBuf >>= 8; bitLen -= 8; }
+  };
+  const resetHT = () => { htKey.fill(-1); codeSize = minCode + 1; nextCode = eofCode + 1; };
+  const htLookup = (prefix, suffix) => {
+    const k = (prefix << 8) | suffix;
+    let slot = (k * 2654435761) & HT_MASK;
+    for (let i = 0; i < HT_SIZE; i++) {
+      if (htKey[slot] === -1) return -1;
+      if (htKey[slot] === k) return htVal[slot];
+      slot = (slot + 1) & HT_MASK;
+    }
+    return -1;
+  };
+  const htInsert = (prefix, suffix, code) => {
+    const k = (prefix << 8) | suffix;
+    let slot = (k * 2654435761) & HT_MASK;
+    while (htKey[slot] !== -1 && htKey[slot] !== k) slot = (slot + 1) & HT_MASK;
+    htKey[slot] = k; htVal[slot] = code;
+  };
+
+  resetHT();
+  emit(clearCode);
+  let prefix = indices[0];
+  for (let i = 1; i < indices.length; i++) {
+    const suffix = indices[i];
+    const code = htLookup(prefix, suffix);
+    if (code !== -1) { prefix = code; }
+    else {
+      emit(prefix);
+      if (nextCode < MAX_CODE) {
+        htInsert(prefix, suffix, nextCode++);
+        if (nextCode > (1 << codeSize) && codeSize < 12) codeSize++;
+      } else { emit(clearCode); resetHT(); }
+      prefix = suffix;
+    }
+  }
+  emit(prefix);
+  emit(eofCode);
+  if (bitLen > 0) out[outPos++] = bitBuf & 0xFF;
+  return out.slice(0, outPos);
+}
+
+class ChunkWriter {
+  constructor() { this._buf = new Uint8Array(65536); this._pos = 0; }
+  _grow() { const nb = new Uint8Array(this._buf.length * 2); nb.set(this._buf); this._buf = nb; }
+  u8(v) { if (this._pos >= this._buf.length) this._grow(); this._buf[this._pos++] = v & 0xFF; }
+  u16(v) { this.u8(v & 0xFF); this.u8((v >> 8) & 0xFF); }
+  str(s) { for (let i = 0; i < s.length; i++) this.u8(s.charCodeAt(i)); }
+  flush() { return this._buf.slice(0, this._pos); }
+}
+
+// ── Init
+updateFrameLabel();
+</script>
+</body>
+</html>

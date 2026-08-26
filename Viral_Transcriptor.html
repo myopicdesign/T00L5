@@ -1,0 +1,796 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Video Transcriber</title>
+<style>
+  :root {
+    --bg: #0f1115;
+    --panel: #1a1d24;
+    --border: #2a2e38;
+    --text: #e8e9ec;
+    --muted: #9098a8;
+    --accent: #6ee7b7;
+    --accent-dark: #34d399;
+    --danger: #f87171;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    min-height: 100vh;
+    padding: 32px 16px;
+  }
+  .wrap { max-width: 820px; margin: 0 auto; }
+  h1 { font-size: 22px; font-weight: 600; margin: 0 0 4px; }
+  .subtitle { color: var(--muted); font-size: 14px; margin: 0 0 28px; }
+
+  .panel {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 20px;
+    margin-bottom: 20px;
+  }
+
+  .drop {
+    border: 2px dashed var(--border);
+    border-radius: 10px;
+    padding: 36px 20px;
+    text-align: center;
+    cursor: pointer;
+    transition: border-color .15s, background .15s;
+  }
+  .drop:hover, .drop.dragover { border-color: var(--accent-dark); background: #16191f; }
+  .drop p { margin: 6px 0; color: var(--muted); font-size: 14px; }
+  .drop strong { color: var(--text); }
+  input[type=file] { display: none; }
+
+  video { width: 100%; border-radius: 8px; margin-top: 14px; display: block; }
+
+  .row { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin-top: 14px; }
+
+  select, button {
+    font-family: inherit;
+    font-size: 14px;
+    border-radius: 8px;
+    border: 1px solid var(--border);
+    padding: 9px 14px;
+    background: #22262f;
+    color: var(--text);
+  }
+  select { cursor: pointer; }
+  button {
+    cursor: pointer;
+    background: var(--accent);
+    color: #0f1115;
+    font-weight: 600;
+    border: none;
+    transition: opacity .15s;
+  }
+  button:hover:not(:disabled) { opacity: .88; }
+  button:disabled { background: #33373f; color: var(--muted); cursor: not-allowed; }
+  button.secondary {
+    background: transparent;
+    border: 1px solid var(--border);
+    color: var(--text);
+    font-weight: 500;
+  }
+
+  .status {
+    font-size: 13px;
+    color: var(--muted);
+    margin-top: 12px;
+    display: none;
+    align-items: center;
+    gap: 10px;
+  }
+  .status.active { display: flex; }
+  .spinner {
+    width: 14px; height: 14px;
+    border: 2px solid var(--border);
+    border-top-color: var(--accent);
+    border-radius: 50%;
+    animation: spin .7s linear infinite;
+    flex-shrink: 0;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  .progress-bar {
+    height: 4px;
+    background: var(--border);
+    border-radius: 4px;
+    overflow: hidden;
+    margin-top: 10px;
+    display: none;
+  }
+  .progress-bar.active { display: block; }
+  .progress-bar-fill {
+    height: 100%;
+    background: var(--accent);
+    width: 0%;
+    transition: width .2s;
+  }
+
+  #result-panel { display: none; }
+  .result-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 14px;
+    flex-wrap: wrap;
+    gap: 10px;
+  }
+  .result-header h2 { font-size: 16px; margin: 0; }
+  .actions { display: flex; gap: 8px; }
+
+  .segments {
+    max-height: 420px;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+  .segment {
+    display: flex;
+    gap: 12px;
+    padding: 10px 8px;
+    border-radius: 6px;
+    cursor: pointer;
+    align-items: baseline;
+  }
+  .segment:hover { background: #22262f; }
+  .segment.playing { background: #1e3a2f; }
+  .segment .time {
+    color: var(--accent);
+    font-size: 12px;
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+    flex-shrink: 0;
+    width: 52px;
+  }
+  .segment .text { font-size: 14px; line-height: 1.5; }
+
+  .plain-text {
+    font-size: 14px;
+    line-height: 1.7;
+    color: var(--text);
+    white-space: pre-wrap;
+    display: none;
+  }
+
+  .error {
+    color: var(--danger);
+    font-size: 13px;
+    margin-top: 12px;
+    display: none;
+  }
+
+  .footer-note { color: var(--muted); font-size: 12px; text-align: center; margin-top: 24px; }
+
+  /* Structure analysis */
+  #structure-panel { display: none; }
+  .structure-btn-wrap { margin-top: 14px; display: flex; gap: 8px; align-items: center; }
+
+  .section-block {
+    border-radius: 8px;
+    padding: 14px 16px;
+    margin-bottom: 10px;
+    border-left: 3px solid transparent;
+  }
+  .section-label {
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: .08em;
+    text-transform: uppercase;
+    margin-bottom: 6px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .section-label .badge {
+    font-size: 10px;
+    padding: 2px 7px;
+    border-radius: 20px;
+    font-weight: 600;
+  }
+  .section-text { font-size: 14px; line-height: 1.6; color: var(--text); }
+  .confidence { font-size: 11px; color: var(--muted); margin-left: auto; font-weight: 400; text-transform: none; letter-spacing: 0; }
+
+  /* Section colors */
+  .sec-hook    { background: #1a1f2e; border-color: #818cf8; }
+  .sec-hook    .section-label { color: #818cf8; }
+  .sec-hook    .badge { background: #818cf826; color: #818cf8; }
+
+  .sec-intro   { background: #1a2030; border-color: #60a5fa; }
+  .sec-intro   .section-label { color: #60a5fa; }
+  .sec-intro   .badge { background: #60a5fa26; color: #60a5fa; }
+
+  .sec-body    { background: #1a2020; border-color: #34d399; }
+  .sec-body    .section-label { color: #34d399; }
+  .sec-body    .badge { background: #34d39926; color: #34d399; }
+
+  .sec-bridge  { background: #1f1f1a; border-color: #fbbf24; }
+  .sec-bridge  .section-label { color: #fbbf24; }
+  .sec-bridge  .badge { background: #fbbf2426; color: #fbbf24; }
+
+  .sec-cta     { background: #201a1a; border-color: #f87171; }
+  .sec-cta     .section-label { color: #f87171; }
+  .sec-cta     .badge { background: #f8717126; color: #f87171; }
+
+  .sec-outro   { background: #1e1a2a; border-color: #c084fc; }
+  .sec-outro   .section-label { color: #c084fc; }
+  .sec-outro   .badge { background: #c084fc26; color: #c084fc; }
+
+  .sec-unknown { background: #1a1d24; border-color: #4b5563; }
+  .sec-unknown .section-label { color: #9098a8; }
+  .sec-unknown .badge { background: #4b556326; color: #9098a8; }
+
+  .structure-legend {
+    display: flex; flex-wrap: wrap; gap: 8px;
+    margin-bottom: 16px;
+  }
+  .legend-item {
+    font-size: 11px; padding: 3px 10px;
+    border-radius: 20px; font-weight: 600;
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>🎬 Video Transcriber</h1>
+  <p class="subtitle">Trascrizione automatica interamente nel browser, tramite Whisper. Nessun upload, nessun server.</p>
+
+  <div class="panel">
+    <div class="drop" id="drop">
+      <p><strong>Clicca per caricare</strong> o trascina qui un video</p>
+      <p>MP4, WebM, MOV, MKV...</p>
+    </div>
+    <input type="file" id="fileInput" accept="video/*">
+    <video id="preview" controls style="display:none"></video>
+
+    <div class="row">
+      <select id="modelSelect">
+        <option value="Xenova/whisper-tiny">Whisper Tiny (veloce, meno preciso)</option>
+        <option value="Xenova/whisper-base">Whisper Base (bilanciato)</option>
+        <option value="Xenova/whisper-small" selected>Whisper Small (più preciso, più lento)</option>
+      </select>
+      <select id="langSelect">
+        <option value="auto">Rileva lingua automaticamente</option>
+        <option value="italian">Italiano</option>
+        <option value="english">Inglese</option>
+        <option value="spanish">Spagnolo</option>
+        <option value="french">Francese</option>
+        <option value="german">Tedesco</option>
+        <option value="portuguese">Portoghese</option>
+      </select>
+      <button id="transcribeBtn" disabled>Trascrivi</button>
+    </div>
+
+    <div class="status" id="status">
+      <div class="spinner"></div>
+      <span id="statusText">Caricamento modello...</span>
+    </div>
+    <div class="progress-bar" id="progressBar"><div class="progress-bar-fill" id="progressFill"></div></div>
+    <div class="error" id="errorBox"></div>
+  </div>
+
+  <div class="panel" id="result-panel">
+    <div class="result-header">
+      <h2>Trascrizione</h2>
+      <div class="actions">
+        <button class="secondary" id="viewToggle">Vista testo</button>
+        <button class="secondary" id="copyBtn">Copia</button>
+        <button class="secondary" id="downloadTxt">.txt</button>
+        <button class="secondary" id="downloadSrt">.srt</button>
+        <button id="analyzeBtn">🔍 Analizza struttura</button>
+      </div>
+    </div>
+    <div class="segments" id="segments"></div>
+    <div class="plain-text" id="plainText"></div>
+  </div>
+
+  <div class="panel" id="structure-panel">
+    <div class="result-header">
+      <h2>📐 Struttura del contenuto</h2>
+      <div class="actions">
+        <button class="secondary" id="copyStructureBtn">Copia</button>
+        <button class="secondary" id="downloadStructureBtn">.txt</button>
+      </div>
+    </div>
+    <div class="structure-legend" id="structureLegend"></div>
+    <div id="structureBlocks"></div>
+  </div>
+
+  <p class="footer-note">Il modello viene scaricato una sola volta e messo in cache dal browser. La prima trascrizione può richiedere qualche minuto.</p>
+</div>
+
+<script type="module">
+import { pipeline, env } from 'https://cdn.jsdelivr.net/npm/@xenova/transformers@2.17.2';
+
+env.allowLocalModels = false;
+
+const dropEl = document.getElementById('drop');
+const fileInput = document.getElementById('fileInput');
+const preview = document.getElementById('preview');
+const transcribeBtn = document.getElementById('transcribeBtn');
+const modelSelect = document.getElementById('modelSelect');
+const langSelect = document.getElementById('langSelect');
+const statusEl = document.getElementById('status');
+const statusText = document.getElementById('statusText');
+const progressBar = document.getElementById('progressBar');
+const progressFill = document.getElementById('progressFill');
+const errorBox = document.getElementById('errorBox');
+const resultPanel = document.getElementById('result-panel');
+const segmentsEl = document.getElementById('segments');
+const plainTextEl = document.getElementById('plainText');
+const viewToggle = document.getElementById('viewToggle');
+const copyBtn = document.getElementById('copyBtn');
+const downloadTxt = document.getElementById('downloadTxt');
+const downloadSrt = document.getElementById('downloadSrt');
+
+let currentFile = null;
+let transcriptChunks = null;
+let showingPlain = false;
+let transcriber = null;
+let currentModelId = null;
+
+function showError(msg) {
+  errorBox.textContent = msg;
+  errorBox.style.display = 'block';
+}
+function clearError() {
+  errorBox.style.display = 'none';
+}
+function setStatus(msg, active) {
+  statusText.textContent = msg;
+  statusEl.classList.toggle('active', !!active);
+}
+function setProgress(pct) {
+  if (pct == null) { progressBar.classList.remove('active'); return; }
+  progressBar.classList.add('active');
+  progressFill.style.width = Math.max(0, Math.min(100, pct)) + '%';
+}
+
+// --- File handling ---
+dropEl.addEventListener('click', () => fileInput.click());
+dropEl.addEventListener('dragover', (e) => { e.preventDefault(); dropEl.classList.add('dragover'); });
+dropEl.addEventListener('dragleave', () => dropEl.classList.remove('dragover'));
+dropEl.addEventListener('drop', (e) => {
+  e.preventDefault();
+  dropEl.classList.remove('dragover');
+  const file = e.dataTransfer.files[0];
+  if (file) handleFile(file);
+});
+fileInput.addEventListener('change', (e) => {
+  const file = e.target.files[0];
+  if (file) handleFile(file);
+});
+
+function handleFile(file) {
+  if (!file.type.startsWith('video/')) {
+    showError('Seleziona un file video valido.');
+    return;
+  }
+  clearError();
+  currentFile = file;
+  preview.src = URL.createObjectURL(file);
+  preview.style.display = 'block';
+  transcribeBtn.disabled = false;
+  resultPanel.style.display = 'none';
+  transcriptChunks = null;
+}
+
+// --- Audio extraction from video via Web Audio API ---
+async function extractAudioMono16k(file) {
+  const arrayBuffer = await file.arrayBuffer();
+  const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+  const decoded = await audioCtx.decodeAudioData(arrayBuffer.slice(0));
+
+  const targetRate = 16000;
+  const offlineCtx = new OfflineAudioContext(
+    1,
+    Math.ceil(decoded.duration * targetRate),
+    targetRate
+  );
+
+  const source = offlineCtx.createBufferSource();
+  source.buffer = decoded;
+
+  // Downmix to mono manually if needed by connecting through a merger
+  if (decoded.numberOfChannels > 1) {
+    const merger = offlineCtx.createChannelMerger(1);
+    const splitter = offlineCtx.createChannelSplitter(decoded.numberOfChannels);
+    source.connect(splitter);
+    const gain = offlineCtx.createGain();
+    for (let i = 0; i < decoded.numberOfChannels; i++) {
+      splitter.connect(gain, i);
+    }
+    gain.connect(offlineCtx.destination);
+  } else {
+    source.connect(offlineCtx.destination);
+  }
+
+  source.start(0);
+  const rendered = await offlineCtx.startRendering();
+  audioCtx.close();
+  return rendered.getChannelData(0);
+}
+
+// --- Model loading ---
+async function getTranscriber(modelId) {
+  if (transcriber && currentModelId === modelId) return transcriber;
+  setStatus('Caricamento modello ' + modelId + '...', true);
+  transcriber = await pipeline('automatic-speech-recognition', modelId, {
+    progress_callback: (data) => {
+      if (data.status === 'progress' && data.progress != null) {
+        setProgress(data.progress);
+        setStatus('Download modello: ' + Math.round(data.progress) + '%', true);
+      } else if (data.status === 'ready') {
+        setProgress(null);
+      }
+    }
+  });
+  currentModelId = modelId;
+  setProgress(null);
+  return transcriber;
+}
+
+// --- Transcription flow ---
+transcribeBtn.addEventListener('click', async () => {
+  if (!currentFile) return;
+  clearError();
+  transcribeBtn.disabled = true;
+
+  try {
+    setStatus('Estrazione audio dal video...', true);
+    const audioData = await extractAudioMono16k(currentFile);
+
+    const modelId = modelSelect.value;
+    const model = await getTranscriber(modelId);
+
+    setStatus('Trascrizione in corso... (può richiedere qualche minuto)', true);
+
+    const lang = langSelect.value;
+    const options = {
+      chunk_length_s: 30,
+      stride_length_s: 5,
+      return_timestamps: true,
+    };
+    if (lang !== 'auto') {
+      options.language = lang;
+      options.task = 'transcribe';
+    }
+
+    const output = await model(audioData, options);
+
+    transcriptChunks = (output.chunks && output.chunks.length)
+      ? output.chunks
+      : [{ timestamp: [0, null], text: output.text }];
+
+    renderResults(transcriptChunks, output.text);
+    setStatus('', false);
+    setProgress(null);
+    resultPanel.style.display = 'block';
+  } catch (err) {
+    console.error(err);
+    showError('Errore durante la trascrizione: ' + err.message);
+    setStatus('', false);
+    setProgress(null);
+  } finally {
+    transcribeBtn.disabled = false;
+  }
+});
+
+function formatTime(sec) {
+  if (sec == null) return '--:--';
+  const m = Math.floor(sec / 60);
+  const s = Math.floor(sec % 60);
+  return String(m).padStart(2, '0') + ':' + String(s).padStart(2, '0');
+}
+
+function formatSrtTime(sec) {
+  if (sec == null) sec = 0;
+  const h = Math.floor(sec / 3600);
+  const m = Math.floor((sec % 3600) / 60);
+  const s = Math.floor(sec % 60);
+  const ms = Math.round((sec - Math.floor(sec)) * 1000);
+  const pad = (n, l = 2) => String(n).padStart(l, '0');
+  return `${pad(h)}:${pad(m)}:${pad(s)},${pad(ms, 3)}`;
+}
+
+function renderResults(chunks, fullText) {
+  segmentsEl.innerHTML = '';
+  chunks.forEach((chunk) => {
+    const start = chunk.timestamp[0];
+    const div = document.createElement('div');
+    div.className = 'segment';
+    div.innerHTML = `<span class="time">${formatTime(start)}</span><span class="text">${escapeHtml(chunk.text.trim())}</span>`;
+    div.addEventListener('click', () => {
+      if (start != null) {
+        preview.currentTime = start;
+        preview.play();
+      }
+    });
+    segmentsEl.appendChild(div);
+  });
+  plainTextEl.textContent = fullText.trim();
+}
+
+function escapeHtml(str) {
+  const div = document.createElement('div');
+  div.textContent = str;
+  return div.innerHTML;
+}
+
+// highlight active segment during playback
+preview.addEventListener('timeupdate', () => {
+  if (!transcriptChunks) return;
+  const t = preview.currentTime;
+  const segs = segmentsEl.querySelectorAll('.segment');
+  let activeIdx = -1;
+  transcriptChunks.forEach((chunk, i) => {
+    const start = chunk.timestamp[0] ?? 0;
+    const end = chunk.timestamp[1] ?? Infinity;
+    if (t >= start && t < end) activeIdx = i;
+  });
+  segs.forEach((el, i) => el.classList.toggle('playing', i === activeIdx));
+});
+
+// --- View toggle ---
+viewToggle.addEventListener('click', () => {
+  showingPlain = !showingPlain;
+  segmentsEl.style.display = showingPlain ? 'none' : 'flex';
+  plainTextEl.style.display = showingPlain ? 'block' : 'none';
+  viewToggle.textContent = showingPlain ? 'Vista timestamp' : 'Vista testo';
+});
+
+// --- Copy / download ---
+copyBtn.addEventListener('click', async () => {
+  if (!transcriptChunks) return;
+  const text = plainTextEl.textContent;
+  await navigator.clipboard.writeText(text);
+  copyBtn.textContent = 'Copiato!';
+  setTimeout(() => copyBtn.textContent = 'Copia', 1500);
+});
+
+function downloadBlob(content, filename, type) {
+  const blob = new Blob([content], { type });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+downloadTxt.addEventListener('click', () => {
+  if (!transcriptChunks) return;
+  downloadBlob(plainTextEl.textContent, 'trascrizione.txt', 'text/plain');
+});
+
+downloadSrt.addEventListener('click', () => {
+  if (!transcriptChunks) return;
+  let srt = '';
+  transcriptChunks.forEach((chunk, i) => {
+    const start = chunk.timestamp[0] ?? 0;
+    const end = chunk.timestamp[1] ?? (start + 3);
+    srt += `${i + 1}\n${formatSrtTime(start)} --> ${formatSrtTime(end)}\n${chunk.text.trim()}\n\n`;
+  });
+  downloadBlob(srt, 'trascrizione.srt', 'text/plain');
+});
+
+// ─── STRUCTURE ANALYSIS ENGINE ────────────────────────────────────────────────
+
+const SECTION_META = {
+  hook:    { label: 'Hook',         emoji: '🪝', cls: 'sec-hook'    },
+  intro:   { label: 'Introduzione', emoji: '👋', cls: 'sec-intro'   },
+  body:    { label: 'Corpo',        emoji: '📝', cls: 'sec-body'    },
+  bridge:  { label: 'Bridge',       emoji: '🔗', cls: 'sec-bridge'  },
+  cta:     { label: 'CTA',          emoji: '📣', cls: 'sec-cta'     },
+  outro:   { label: 'Outro',        emoji: '👏', cls: 'sec-outro'   },
+  unknown: { label: 'Sezione',      emoji: '📄', cls: 'sec-unknown' },
+};
+
+// Keyword patterns per lingua (IT + EN)
+const PATTERNS = {
+  hook: {
+    strong: [
+      /\bimmagina\b/i, /\bimmaginate\b/i, /\bhai mai\b/i, /\bsapevi che\b/i,
+      /\blo sapevi\b/i, /\bcosa succederebbe\b/i, /\bcosa faresti\b/i,
+      /\bdid you know\b/i, /\bimagine\b/i, /\bwhat if\b/i, /\bhave you ever\b/i,
+      /\bwould you believe\b/i, /\bguess what\b/i,
+    ],
+    weak: [
+      /\bperché\b/i, /\bcome mai\b/i, /\bquesto è\b/i, /\bstai guardando\b/i,
+      /\bbenvenuti?\b/i, /\bwelcome\b/i, /\btoday\b/i, /\boggi\b/i,
+    ],
+  },
+  intro: {
+    strong: [
+      /\bmi chiamo\b/i, /\bsono [A-Z]/i, /\bin questo video\b/i,
+      /\bparleremo di\b/i, /\bvi parlerò di\b/i, /\bvedremo come\b/i,
+      /\bin this video\b/i, /\bmy name is\b/i, /\bi'm going to\b/i,
+      /\btoday (i|we|you)'?ll?\b/i, /\bthis video is about\b/i,
+    ],
+    weak: [
+      /\bcominciamo\b/i, /\biniziamo\b/i, /\blet's start\b/i, /\blet's begin\b/i,
+      /\bprima di tutto\b/i, /\bfirst of all\b/i, /\banzitutto\b/i,
+    ],
+  },
+  cta: {
+    strong: [
+      /\biscriviti\b/i, /\biscrivetevi\b/i, /\blike\b/i, /\bmetti mi piace\b/i,
+      /\bcondividi\b/i, /\bcommenta\b/i, /\blascia un commento\b/i,
+      /\bseguimi\b/i, /\bseguici\b/i, /\bnotifich\b/i, /\bcampanella\b/i,
+      /\bsubscribe\b/i, /\bfollow\b/i, /\bshare\b/i, /\bleave a comment\b/i,
+      /\bturn on\b/i, /\bbell icon\b/i, /\bhit the\b/i,
+      /\blink in bio\b/i, /\blink in descrizione\b/i, /\btrovi il link\b/i,
+    ],
+    weak: [
+      /\bfammi sapere\b/i, /\blet me know\b/i, /\bscrivimi\b/i,
+      /\bdimmi\b/i, /\btell me\b/i,
+    ],
+  },
+  outro: {
+    strong: [
+      /\bci vediamo\b/i, /\balla prossima\b/i, /\ba presto\b/i,
+      /\bgrazie per aver guardato\b/i, /\bgrazie mille\b/i,
+      /\bsee you (next|in the)\b/i, /\bthat'?s all\b/i, /\bthat'?s it\b/i,
+      /\bthanks for watching\b/i, /\btake care\b/i, /\bbye\b/i, /\baddio\b/i,
+      /\barrivederci\b/i, /\bciao ciao\b/i,
+    ],
+    weak: [
+      /\bin conclusione\b/i, /\bper concludere\b/i, /\bin conclusion\b/i,
+      /\bfinally\b/i, /\bper finire\b/i,
+    ],
+  },
+  bridge: {
+    strong: [
+      /\bdetto questo\b/i, /\bparlando di\b/i, /\btornando a\b/i,
+      /\bpassando a\b/i, /\badesso vediamo\b/i, /\bora vediamo\b/i,
+      /\bspeaking of\b/i, /\bwith that said\b/i, /\bmoving on\b/i,
+      /\bnow let'?s\b/i, /\bthat brings us\b/i, /\bon that note\b/i,
+      /\bcomunque\b/i, /\bdunque\b/i, /\bperò\b/i, /\bhowever\b/i,
+    ],
+    weak: [
+      /\binoltre\b/i, /\banche\b/i, /\bmoreover\b/i, /\badditionally\b/i,
+    ],
+  },
+};
+
+function scoreChunk(text) {
+  const scores = { hook: 0, intro: 0, cta: 0, outro: 0, bridge: 0 };
+  for (const [section, { strong, weak }] of Object.entries(PATTERNS)) {
+    for (const re of strong) if (re.test(text)) scores[section] += 3;
+    for (const re of weak)   if (re.test(text)) scores[section] += 1;
+  }
+  return scores;
+}
+
+function mergeConsecutive(labeled) {
+  if (!labeled.length) return labeled;
+  const merged = [{ ...labeled[0] }];
+  for (let i = 1; i < labeled.length; i++) {
+    const last = merged[merged.length - 1];
+    if (labeled[i].type === last.type) {
+      last.text += ' ' + labeled[i].text;
+      last.confidence = Math.max(last.confidence, labeled[i].confidence);
+    } else {
+      merged.push({ ...labeled[i] });
+    }
+  }
+  return merged;
+}
+
+function analyzeStructure(chunks) {
+  const total = chunks.length;
+  if (total === 0) return [];
+
+  const labeled = chunks.map((chunk, i) => {
+    const text = chunk.text.trim();
+    const pos = i / total; // 0 = inizio, 1 = fine
+    const scores = scoreChunk(text);
+
+    // Boost positional: hook e intro early, cta e outro late
+    if (pos < 0.12) { scores.hook += 4; scores.intro += 2; }
+    else if (pos < 0.25) { scores.intro += 3; scores.hook += 1; }
+    else if (pos > 0.88) { scores.outro += 4; scores.cta += 3; }
+    else if (pos > 0.75) { scores.cta += 2; scores.outro += 1; }
+    else { scores.body = 2; } // default mid = body
+
+    const best = Object.entries(scores).reduce((a, b) => b[1] > a[1] ? b : a);
+    const type = best[1] > 0 ? best[0] : 'body';
+    const confidence = Math.min(100, Math.round((best[1] / 8) * 100));
+
+    return { type, text, confidence, start: chunk.timestamp?.[0] };
+  });
+
+  // Post-processing: forza body per i segmenti centrali senza match forte
+  const processed = labeled.map((item, i) => {
+    const pos = i / total;
+    if (pos >= 0.25 && pos <= 0.75 && item.type !== 'bridge' && item.confidence < 30) {
+      return { ...item, type: 'body', confidence: 40 };
+    }
+    return item;
+  });
+
+  return mergeConsecutive(processed);
+}
+
+function renderStructure(sections) {
+  const blocksEl = document.getElementById('structureBlocks');
+  const legendEl = document.getElementById('structureLegend');
+  blocksEl.innerHTML = '';
+  legendEl.innerHTML = '';
+
+  // Legend
+  const usedTypes = [...new Set(sections.map(s => s.type))];
+  usedTypes.forEach(type => {
+    const m = SECTION_META[type] || SECTION_META.unknown;
+    const li = document.createElement('span');
+    li.className = 'legend-item';
+    li.style.background = getComputedStyle(document.documentElement)
+      .getPropertyValue('--border') || '#2a2e38';
+    li.textContent = `${m.emoji} ${m.label}`;
+    legendEl.appendChild(li);
+  });
+
+  sections.forEach(sec => {
+    const m = SECTION_META[sec.type] || SECTION_META.unknown;
+    const div = document.createElement('div');
+    div.className = `section-block ${m.cls}`;
+
+    const confLabel = sec.confidence >= 60 ? 'alta' : sec.confidence >= 30 ? 'media' : 'bassa';
+
+    div.innerHTML = `
+      <div class="section-label">
+        <span class="badge">${m.emoji} ${m.label}</span>
+        <span class="confidence">confidenza ${confLabel}</span>
+      </div>
+      <div class="section-text">${escapeHtml(sec.text)}</div>
+    `;
+    blocksEl.appendChild(div);
+  });
+}
+
+const analyzeBtn = document.getElementById('analyzeBtn');
+const structurePanel = document.getElementById('structure-panel');
+const copyStructureBtn = document.getElementById('copyStructureBtn');
+const downloadStructureBtn = document.getElementById('downloadStructureBtn');
+
+let currentStructure = null;
+
+analyzeBtn.addEventListener('click', () => {
+  if (!transcriptChunks) return;
+  currentStructure = analyzeStructure(transcriptChunks);
+  renderStructure(currentStructure);
+  structurePanel.style.display = 'block';
+  structurePanel.scrollIntoView({ behavior: 'smooth', block: 'start' });
+});
+
+copyStructureBtn.addEventListener('click', async () => {
+  if (!currentStructure) return;
+  const text = currentStructure.map(s => {
+    const m = SECTION_META[s.type] || SECTION_META.unknown;
+    return `[${m.label.toUpperCase()}]\n${s.text}`;
+  }).join('\n\n');
+  await navigator.clipboard.writeText(text);
+  copyStructureBtn.textContent = 'Copiato!';
+  setTimeout(() => copyStructureBtn.textContent = 'Copia', 1500);
+});
+
+downloadStructureBtn.addEventListener('click', () => {
+  if (!currentStructure) return;
+  const text = currentStructure.map(s => {
+    const m = SECTION_META[s.type] || SECTION_META.unknown;
+    return `[${m.label.toUpperCase()}]\n${s.text}`;
+  }).join('\n\n');
+  downloadBlob(text, 'struttura.txt', 'text/plain');
+});
+</script>
+</body>
+</html>
