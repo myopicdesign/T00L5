@@ -1,0 +1,352 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Torchia's Tool</title>
+  <link href="https://fonts.googleapis.com/css2?family=Montserrat:ital,wght@0,300;0,400;0,700;0,900;1,900&family=Inter:wght@300;400;500&display=swap" rel="stylesheet" />
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg:        #0b0c0b;
+      --card:      #111311;
+      --border:    #222622;
+      --hover:     #161916;
+      --accent:    #c8f135;   /* verde limone Lyndel */
+      --accent-lo: rgba(200,241,53,.08);
+      --accent-mid:rgba(200,241,53,.22);
+      --text:      #eaeaea;
+      --muted:     #6e7270;
+      --faint:     #333;
+    }
+
+    html { scroll-behavior: smooth; }
+
+    body {
+      font-family: 'Inter', sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+      overflow-x: hidden;
+    }
+
+    /* ─── HERO ─── */
+    .hero {
+      position: relative;
+      text-align: center;
+      padding: 7rem 1.5rem 5rem;
+      overflow: hidden;
+    }
+
+    /* frecce decorative SVG stile Lyndel */
+    .hero-arrow {
+      position: absolute;
+      opacity: .55;
+      pointer-events: none;
+    }
+    .hero-arrow.left  { left: 6vw;  top: 52%; transform: translateY(-50%) scaleX(-1); }
+    .hero-arrow.right { right: 6vw; top: 52%; transform: translateY(-50%); }
+
+    .eyebrow {
+      display: inline-flex;
+      align-items: center;
+      gap: .45rem;
+      font-family: 'Montserrat', sans-serif;
+      font-size: .65rem;
+      font-weight: 700;
+      letter-spacing: .22em;
+      text-transform: uppercase;
+      color: var(--accent);
+      margin-bottom: 2rem;
+      padding: .38rem 1rem;
+      border: 1px solid rgba(200,241,53,.3);
+      border-radius: 99px;
+    }
+    .eyebrow::before { content: ''; display:block; width:6px; height:6px; border-radius:50%; background:var(--accent); }
+
+    h1 {
+      font-family: 'Montserrat', sans-serif;
+      font-size: clamp(3.2rem, 9vw, 7rem);
+      line-height: .95;
+      letter-spacing: -.04em;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: .05em;
+    }
+
+    h1 .main {
+      font-weight: 900;
+      color: #fff;
+    }
+
+    h1 .hl {
+      color: var(--accent);
+      font-style: italic;
+      font-weight: 300;
+      letter-spacing: -.02em;
+      position: relative;
+      display: inline-block;
+    }
+
+    h1 .hl svg {
+      position: absolute;
+      left: -4%;
+      bottom: -.18em;
+      width: 108%;
+      height: auto;
+      pointer-events: none;
+    }
+
+    .subtitle {
+      margin: 2rem auto 0;
+      font-size: .95rem;
+      line-height: 1.75;
+      color: var(--muted);
+      max-width: 480px;
+      font-weight: 300;
+      letter-spacing: .01em;
+    }
+
+    /* ─── SEZIONE TOOLS ─── */
+    .section {
+      padding: 0 1.5rem 6rem;
+    }
+
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(290px, 1fr));
+      gap: 1px;
+      max-width: 1080px;
+      margin: 0 auto;
+      background: var(--border);
+      border: 1px solid var(--border);
+      border-radius: 20px;
+      overflow: hidden;
+    }
+
+    /* ─── CARD ─── */
+    .card {
+      background: var(--card);
+      padding: 2rem 1.9rem 1.7rem;
+      display: flex;
+      flex-direction: column;
+      gap: .7rem;
+      text-decoration: none;
+      color: inherit;
+      transition: background .2s;
+      position: relative;
+    }
+
+    .card:hover { background: var(--hover); }
+
+    .card-top {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      margin-bottom: .2rem;
+    }
+
+    .icon {
+      font-size: 1.9rem;
+      width: 50px;
+      height: 50px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: #0e100e;
+      border: 1px solid var(--border);
+      border-radius: 13px;
+      flex-shrink: 0;
+    }
+
+    /* freccia card — SVG stile Lyndel */
+    .card-arrow {
+      width: 26px;
+      height: 26px;
+      color: var(--accent);
+      opacity: .3;
+      transition: opacity .2s, transform .2s;
+      margin-top: 2px;
+      flex-shrink: 0;
+    }
+    .card:hover .card-arrow {
+      opacity: 1;
+      transform: translate(3px, -3px);
+    }
+
+    .card-label {
+      font-family: 'Montserrat', sans-serif;
+      font-size: .58rem;
+      font-weight: 700;
+      letter-spacing: .2em;
+      text-transform: uppercase;
+      color: var(--faint);
+    }
+
+    .card-name {
+      font-family: 'Montserrat', sans-serif;
+      font-size: 1.08rem;
+      font-weight: 700;
+      color: #fff;
+      letter-spacing: -.01em;
+      line-height: 1.15;
+    }
+
+    .card-desc {
+      font-size: .82rem;
+      line-height: 1.65;
+      color: var(--muted);
+      font-weight: 300;
+      flex: 1;
+    }
+
+    /* bottone verde pieno stile Lyndel */
+    .card-cta {
+      margin-top: .8rem;
+      display: inline-flex;
+      align-items: center;
+      gap: .45rem;
+      font-family: 'Montserrat', sans-serif;
+      font-size: .72rem;
+      font-weight: 700;
+      letter-spacing: .07em;
+      text-transform: uppercase;
+      color: #0b0c0b;
+      background: var(--accent);
+      border-radius: 9px;
+      padding: .58rem 1.1rem;
+      width: fit-content;
+      transition: opacity .18s, transform .18s;
+    }
+    .card-cta svg { width:12px; height:12px; }
+    .card:hover .card-cta {
+      opacity: .9;
+      transform: translateY(-1px);
+    }
+
+    /* ─── FOOTER ─── */
+    footer {
+      text-align: center;
+      padding-bottom: 3rem;
+      font-size: .72rem;
+      color: var(--faint);
+      letter-spacing: .07em;
+      font-weight: 300;
+    }
+    footer strong { color: var(--muted); font-weight: 500; }
+
+    @media (max-width: 600px) {
+      .hero-arrow { display: none; }
+      .grid { border-radius: 12px; }
+      .card { padding: 1.5rem; }
+    }
+  </style>
+</head>
+<body>
+
+  <header class="hero">
+
+    <div><span class="eyebrow">Fabrizio Torchia · Creative Tools</span></div>
+
+    <h1>
+      <span class="main">Torchia's</span>
+      <span class="hl">tool<svg viewBox="0 0 200 14" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+        <path d="M2 9 C18 5, 40 11, 62 7 C84 3, 105 10, 128 6 C150 2, 172 9, 198 6" stroke="#c8f135" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/>
+        <path d="M4 11 C22 8, 48 13, 72 10 C96 7, 118 12, 142 9 C164 6, 184 11, 197 9" stroke="#c8f135" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round" opacity=".5"/>
+      </svg></span>
+    </h1>
+
+    <p class="subtitle">Una serie di tools realizzati da Fabrizio Torchia per agevolare alcune lavorazioni social e non solo.</p>
+  </header>
+
+  <section class="section">
+    <div class="grid" id="toolGrid"></div>
+  </section>
+
+  <footer>
+    Crafted by <strong>Fabrizio Torchia</strong> &nbsp;·&nbsp; All tools run locally in your browser.
+  </footer>
+
+  <script>
+    const tools = [
+      {
+        icon: "🦾",
+        label: "Animation",
+        name: "Puppet 2D",
+        desc: "Rigga immagini statiche con un sistema di ossatura intelligente e animale ogni parte con precisione, direttamente nel browser.",
+        file: "Puppet_Rig.html"
+      },
+      {
+        icon: "✏️",
+        label: "Drawing",
+        name: "Sketch Draw",
+        desc: "Disegna a mano libera e guarda i tuoi tratti prendere vita: ogni pennellata si trasforma in un'animazione fluida in tempo reale.",
+        file: "Sketch_Draw.html"
+      },
+      {
+        icon: "〰️",
+        label: "Effects",
+        name: "Wiggle",
+        desc: "Importa qualsiasi immagine e trasformala istantaneamente in un loop wiggle dall'effetto vibrante e organico — nessun plugin richiesto.",
+        file: "Wiggle_draw.html"
+      },
+      {
+        icon: "🪄",
+        label: "Image",
+        name: "Background Remove",
+        desc: "Rimuovi lo sfondo da uno o più file in un colpo solo. Processamento batch intelligente, risultati puliti, zero fatica.",
+        file: "BG_REMOVE.html"
+      },
+      {
+        icon: "🎞️",
+        label: "GIF",
+        name: "GIF Frames",
+        desc: "Scomponi qualsiasi GIF animata nei suoi frame singoli ed esportali tutti in un click. Perfetto per remixare e riutilizzare contenuti.",
+        file: "Gif_Frame_Exporter.html"
+      },
+      {
+        icon: "🎬",
+        label: "Video · AI",
+        name: "Script Cut",
+        desc: "Incolla lo script, carica il girato: il tool monta il video automaticamente con tagli millimetrici sincronizzati alla sceneggiatura.",
+        file: "Cutter_script.html"
+      },
+      {
+        icon: "⚡",
+        label: "Video",
+        name: "Speed Video",
+        desc: "Accelera i tuoi video mantenendo il tono e la naturalezza della voce intatti. Più veloce, stesso feeling.",
+        file: "speedvid.html"
+      }
+    ];
+
+    const arrowSVG = `<svg class="card-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="7" y1="17" x2="17" y2="7"/><polyline points="7 7 17 7 17 17"/></svg>`;
+
+    const grid = document.getElementById('toolGrid');
+
+    tools.forEach(t => {
+      const card = document.createElement('a');
+      card.className = 'card';
+      card.href = t.file;
+      card.target = '_blank';
+      card.rel = 'noopener noreferrer';
+      card.innerHTML = `
+        <div class="card-top">
+          <div class="icon">${t.icon}</div>
+          ${arrowSVG}
+        </div>
+        <div class="card-label">${t.label}</div>
+        <div class="card-name">${t.name}</div>
+        <div class="card-desc">${t.desc}</div>
+        <div class="card-cta">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>
+          Apri il Tool
+        </div>
+      `;
+      grid.appendChild(card);
+    });
+  </script>
+</body>
+</html>
