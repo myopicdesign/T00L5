@@ -1,0 +1,1823 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Liquify Tool v4</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --bg: #1a1a1c;
+    --panel: #232326;
+    --panel2: #2a2a2e;
+    --border: #3a3a3f;
+    --accent: #4f8ef7;
+    --accent2: #7b5cf0;
+    --text: #e8e8ea;
+    --text2: #888890;
+    --red: #f05252;
+    --green: #3ecf70;
+    --orange: #f5a623;
+    --radius: 6px;
+  }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'SF Pro Display', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    font-size: 12px;
+    height: 100vh;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    user-select: none;
+  }
+
+  /* TOP BAR */
+  #topbar {
+    height: 40px;
+    background: var(--panel);
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    padding: 0 12px;
+    gap: 16px;
+    flex-shrink: 0;
+  }
+  #topbar .logo { font-size: 13px; font-weight: 700; letter-spacing: 0.04em; color: var(--accent); margin-right: 8px; }
+  #topbar button {
+    background: var(--panel2); border: 1px solid var(--border); color: var(--text);
+    padding: 4px 10px; border-radius: var(--radius); font-size: 11px; cursor: pointer; transition: background 0.15s;
+  }
+  #topbar button:hover { background: var(--border); }
+  #topbar button:disabled { opacity: 0.35; cursor: not-allowed; }
+  #topbar button.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+  #topbar button.primary:hover { background: #3a7de0; }
+  #topbar .sep { width: 1px; height: 20px; background: var(--border); }
+  #topbar .spacer { flex: 1; }
+  #fps-info { color: var(--text2); font-size: 11px; }
+
+  /* MAIN LAYOUT */
+  #main { display: flex; flex: 1; overflow: hidden; }
+
+  /* LEFT TOOLS */
+  #tools {
+    width: 48px; background: var(--panel); border-right: 1px solid var(--border);
+    display: flex; flex-direction: column; align-items: center; padding: 8px 0; gap: 4px; flex-shrink: 0;
+  }
+  .tool-btn {
+    width: 36px; height: 36px; border-radius: var(--radius); border: none; background: transparent;
+    color: var(--text2); cursor: pointer; display: flex; align-items: center; justify-content: center;
+    font-size: 17px; transition: all 0.15s; position: relative;
+  }
+  .tool-btn:hover { background: var(--panel2); color: var(--text); }
+  .tool-btn.active { background: var(--accent); color: #fff; }
+  .tool-btn[title]:hover::after {
+    content: attr(title); position: absolute; left: 44px; top: 50%; transform: translateY(-50%);
+    background: #000; color: #fff; padding: 3px 8px; border-radius: 4px; font-size: 11px;
+    white-space: nowrap; z-index: 100; pointer-events: none;
+  }
+  .tool-sep { width: 28px; height: 1px; background: var(--border); margin: 4px 0; }
+
+  /* CANVAS AREA */
+  #canvas-area {
+    flex: 1; display: flex; align-items: center; justify-content: center;
+    background: #111113; overflow: hidden; position: relative;
+  }
+  #canvas-wrap { position: relative; box-shadow: 0 8px 48px #0008; }
+  #mainCanvas { display: block; cursor: crosshair; }
+  #overlay-canvas { position: absolute; top: 0; left: 0; pointer-events: none; }
+  #drop-hint {
+    position: absolute; display: flex; flex-direction: column; align-items: center;
+    justify-content: center; gap: 10px; color: var(--text2); pointer-events: none;
+  }
+  #drop-hint .icon { font-size: 48px; opacity: 0.4; }
+  #drop-hint p { font-size: 14px; }
+  #drop-hint small { font-size: 11px; opacity: 0.6; }
+
+  /* RIGHT PANEL */
+  #right-panel {
+    width: 240px; background: var(--panel); border-left: 1px solid var(--border);
+    display: flex; flex-direction: column; flex-shrink: 0; overflow-y: auto;
+  }
+  .panel-section { padding: 12px 14px 12px 12px; border-bottom: 1px solid var(--border); }
+  .panel-section h3 {
+    font-size: 10px; font-weight: 600; letter-spacing: 0.08em;
+    text-transform: uppercase; color: var(--text2); margin-bottom: 10px;
+  }
+
+  /* TOOL PICKER (new) */
+  .tool-picker {
+    display: flex; gap: 4px; margin-bottom: 10px; background: var(--panel2);
+    border: 1px solid var(--border); border-radius: 6px; padding: 3px;
+  }
+  .tool-pick-btn {
+    flex: 1; padding: 5px 4px; border-radius: 4px; border: none; background: transparent;
+    color: var(--text2); cursor: pointer; font-size: 16px; transition: all 0.15s;
+    display: flex; flex-direction: column; align-items: center; gap: 2px; line-height: 1;
+  }
+  .tool-pick-btn span.lbl { font-size: 8px; letter-spacing: 0.03em; }
+  .tool-pick-btn:hover { background: var(--border); color: var(--text); }
+  .tool-pick-btn.active { background: var(--accent); color: #fff; }
+
+  /* PARAM ROWS */
+  .param-row { display: flex; align-items: center; margin-bottom: 8px; gap: 6px; overflow: visible; }
+  .param-row label { width: 58px; color: var(--text2); font-size: 11px; flex-shrink: 0; }
+  .param-row input[type=range] { flex: 1; height: 3px; accent-color: var(--accent); cursor: pointer; min-width: 0; }
+  .param-row .num-input {
+    width: 42px; flex-shrink: 0; background: var(--panel2); border: 1px solid var(--border);
+    color: var(--text); font-size: 11px; padding: 2px 3px; border-radius: 4px; text-align: right;
+    font-variant-numeric: tabular-nums;
+  }
+  .param-row .num-input:focus { outline: none; border-color: var(--accent); }
+  .param-row select {
+    flex: 1; background: var(--panel2); border: 1px solid var(--border); color: var(--text);
+    padding: 3px 6px; border-radius: 4px; font-size: 11px; cursor: pointer;
+  }
+
+  /* RESET / MESH */
+  .btn-row { display: flex; gap: 6px; margin-top: 4px; }
+  .btn-row button {
+    flex: 1; padding: 5px; border-radius: 4px; border: 1px solid var(--border);
+    background: var(--panel2); color: var(--text2); font-size: 11px; cursor: pointer; transition: all 0.15s;
+  }
+  .btn-row button:hover { color: var(--text); background: var(--border); }
+  .btn-row button.danger { border-color: var(--red); color: var(--red); }
+  .btn-row button.danger:hover { background: #f0525222; }
+
+  /* KEYFRAME LIST */
+  #kf-list { display: flex; flex-direction: column; gap: 4px; margin-bottom: 8px; }
+  .kf-row {
+    display: flex; align-items: center; gap: 5px; padding: 4px 6px;
+    border-radius: 4px; cursor: pointer; transition: background 0.1s;
+    border: 1px solid transparent;
+  }
+  .kf-row.active { background: var(--accent); border-color: transparent; }
+  .kf-row:not(.active) { background: var(--panel2); }
+  .kf-row .kf-time { font-size: 10px; color: var(--text2); font-variant-numeric: tabular-nums; }
+  .kf-row.active .kf-time { color: rgba(255,255,255,0.7); }
+  .kf-curve-btn {
+    margin-left: auto; background: transparent; border: 1px solid var(--border);
+    border-radius: 3px; color: var(--text2); font-size: 9px; padding: 1px 4px; cursor: pointer;
+    transition: all 0.15s; flex-shrink: 0;
+  }
+  .kf-row.active .kf-curve-btn { border-color: rgba(255,255,255,0.3); color: rgba(255,255,255,0.8); }
+  .kf-curve-btn:hover { background: var(--accent); color: #fff; border-color: var(--accent); }
+
+  /* BOTTOM TIMELINE */
+  #timeline {
+    height: 130px; background: var(--panel); border-top: 1px solid var(--border);
+    flex-shrink: 0; display: flex; flex-direction: column;
+  }
+  #timeline-header {
+    height: 32px; display: flex; align-items: center; padding: 0 12px; gap: 8px;
+    border-bottom: 1px solid var(--border); flex-shrink: 0;
+  }
+  #timeline-header span { font-size: 11px; color: var(--text2); }
+  #timeline-header .tl-btn {
+    background: var(--panel2); border: 1px solid var(--border); color: var(--text);
+    padding: 3px 8px; border-radius: 4px; font-size: 11px; cursor: pointer; transition: background 0.12s;
+  }
+  #timeline-header .tl-btn:hover { background: var(--border); }
+  #timeline-header .tl-btn.accent { background: var(--accent); border-color: var(--accent); color: #fff; }
+  #timeline-header .tl-btn.accent:hover { background: #3a7de0; }
+  #timeline-header .spacer { flex: 1; }
+  #playhead-time { font-size: 11px; color: var(--accent); font-variant-numeric: tabular-nums; min-width: 50px; text-align: right; }
+
+  #timeline-body { flex: 1; position: relative; overflow: hidden; display: flex; flex-direction: column; }
+  #timeline-ruler {
+    height: 18px; position: relative; background: var(--bg); border-bottom: 1px solid var(--border);
+    flex-shrink: 0; cursor: pointer;
+  }
+  #keyframe-track { flex: 1; position: relative; cursor: pointer; }
+  #playhead-line {
+    position: absolute; top: 0; bottom: 0; width: 2px; background: var(--accent);
+    pointer-events: none; z-index: 10;
+  }
+  #playhead-line::before {
+    content: ''; position: absolute; top: 0; left: -4px; width: 10px; height: 10px;
+    background: var(--accent); clip-path: polygon(50% 0%, 0% 100%, 100% 100%);
+    transform: translateY(-18px) rotate(180deg);
+  }
+  .keyframe-marker {
+    position: absolute; top: 50%; transform: translate(-50%, -50%) rotate(45deg);
+    width: 12px; height: 12px; background: var(--orange); border: 2px solid #fff4;
+    cursor: pointer; z-index: 5; transition: background 0.15s;
+  }
+  .keyframe-marker:hover { background: #fff; }
+  .keyframe-marker.active { background: var(--accent); border-color: #fff; }
+
+  /* ── CURVE EDITOR MODAL ── */
+  #curve-modal {
+    display: none; position: fixed; inset: 0; background: #0009; z-index: 2000;
+    align-items: center; justify-content: center;
+  }
+  #curve-modal.show { display: flex; }
+  #curve-box {
+    background: var(--panel); border: 1px solid var(--border); border-radius: 10px;
+    padding: 20px; width: 360px;
+  }
+  #curve-box h2 { font-size: 14px; margin-bottom: 4px; }
+  #curve-box .sub { font-size: 11px; color: var(--text2); margin-bottom: 14px; }
+  #curve-canvas {
+    display: block; border-radius: 6px; border: 1px solid var(--border);
+    cursor: crosshair; background: #16161a;
+  }
+  .curve-presets { display: flex; gap: 6px; margin-top: 12px; flex-wrap: wrap; }
+  .curve-preset-btn {
+    padding: 4px 10px; border-radius: 4px; border: 1px solid var(--border);
+    background: var(--panel2); color: var(--text2); font-size: 10px; cursor: pointer; transition: all 0.15s;
+  }
+  .curve-preset-btn:hover { background: var(--border); color: var(--text); }
+  .curve-preset-btn.active { background: var(--accent); border-color: var(--accent); color: #fff; }
+  .curve-actions { display: flex; gap: 8px; margin-top: 14px; }
+  .curve-actions button {
+    flex: 1; padding: 7px; border-radius: 6px; font-size: 12px; cursor: pointer;
+    border: 1px solid var(--border); background: var(--panel2); color: var(--text); transition: background 0.15s;
+  }
+  .curve-actions button.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+  .curve-actions button:hover { opacity: 0.85; }
+
+  /* EXPORT MODAL */
+  #export-modal {
+    display: none; position: fixed; inset: 0; background: #0009;
+    z-index: 1000; align-items: center; justify-content: center;
+  }
+  #export-modal.show { display: flex; }
+  #export-box {
+    background: var(--panel); border: 1px solid var(--border); border-radius: 10px; padding: 24px; width: 320px;
+  }
+  #export-box h2 { font-size: 15px; margin-bottom: 16px; }
+  #export-box .row { margin-bottom: 12px; }
+  #export-box label { display: block; color: var(--text2); font-size: 11px; margin-bottom: 4px; }
+  #export-box input[type=number], #export-box select {
+    width: 100%; background: var(--panel2); border: 1px solid var(--border); color: var(--text);
+    padding: 6px 8px; border-radius: 4px; font-size: 12px;
+  }
+  #export-box .actions { display: flex; gap: 8px; margin-top: 16px; }
+  #export-box .actions button {
+    flex: 1; padding: 8px; border-radius: 6px; font-size: 12px; cursor: pointer;
+    border: 1px solid var(--border); background: var(--panel2); color: var(--text); transition: background 0.15s;
+  }
+  #export-box .actions button.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+  #export-box .actions button:hover { opacity: 0.85; }
+  #export-progress { margin-top: 12px; display: none; }
+  #export-progress .bar-bg { height: 4px; background: var(--border); border-radius: 2px; overflow: hidden; }
+  #export-progress .bar-fill { height: 100%; background: var(--accent); border-radius: 2px; transition: width 0.1s; width: 0%; }
+  #export-progress .label { font-size: 11px; color: var(--text2); margin-top: 4px; }
+
+  input[type=file] { display: none; }
+
+  /* Editing indicator */
+  #edit-indicator {
+    position: absolute; top: 10px; left: 50%; transform: translateX(-50%);
+    background: rgba(79,142,247,0.18); border: 1px solid var(--accent);
+    color: var(--accent); font-size: 11px; font-weight: 600; letter-spacing: 0.06em;
+    padding: 4px 14px; border-radius: 20px; pointer-events: none;
+    display: none; white-space: nowrap; backdrop-filter: blur(4px);
+  }
+  #edit-indicator.show { display: block; }
+  #edit-indicator.preview { background: rgba(245,166,35,0.15); border-color: var(--orange); color: var(--orange); }
+</style>
+</head>
+<body>
+
+<!-- TOP BAR -->
+<div id="topbar">
+  <span class="logo">⟁ LIQUIFY</span>
+  <div class="sep"></div>
+  <button onclick="document.getElementById('fileInput').click()">📂 Open Image</button>
+  <input type="file" id="fileInput" accept="image/*">
+  <div class="sep"></div>
+  <button onclick="saveProject()" id="save-btn" disabled>💾 Save Project</button>
+  <button onclick="document.getElementById('projectInput').click()">📁 Load Project</button>
+  <input type="file" id="projectInput" accept=".json">
+  <div class="sep"></div>
+  <button id="btn-undo" onclick="undo()" title="Undo (Ctrl+Z)" disabled>↩ Undo</button>
+  <button id="btn-redo" onclick="redo()" title="Redo (Ctrl+Y)" disabled>↪ Redo</button>
+  <div class="sep"></div>
+  <button onclick="showExportModal()" id="export-btn" disabled>🎬 Export ZIP</button>
+  <div class="spacer"></div>
+  <span id="zoom-info" style="color:var(--text2);font-size:11px;font-variant-numeric:tabular-nums;min-width:40px;text-align:right">100%</span>
+  <button onclick="resetView()" title="Reset view (double-click background)">⟲ Reset View</button>
+  <div class="sep"></div>
+  <span id="fps-info">no image loaded</span>
+</div>
+
+<!-- MAIN -->
+<div id="main">
+
+  <!-- LEFT TOOLS -->
+  <div id="tools">
+    <button class="tool-btn active" id="tool-warp" title="Warp (W)" onclick="setTool('warp')">〜</button>
+    <button class="tool-btn" id="tool-twirl-cw" title="Twirl CW (T)" onclick="setTool('twirl-cw')">↻</button>
+    <button class="tool-btn" id="tool-twirl-ccw" title="Twirl CCW (R)" onclick="setTool('twirl-ccw')">↺</button>
+    <button class="tool-btn" id="tool-bloat" title="Bloat (B)" onclick="setTool('bloat')">⊕</button>
+    <button class="tool-btn" id="tool-pucker" title="Pucker (P)" onclick="setTool('pucker')">⊖</button>
+    <div class="tool-sep"></div>
+    <button class="tool-btn" id="tool-smooth" title="Smooth (S)" onclick="setTool('smooth')">◎</button>
+    <button class="tool-btn" id="tool-reconstruct" title="Reconstruct (E)" onclick="setTool('reconstruct')">↩</button>
+  </div>
+
+  <!-- CANVAS -->
+  <div id="canvas-area">
+    <div id="drop-hint">
+      <div class="icon">🖼️</div>
+      <p>Drop an image or click Open Image</p>
+      <small>PNG, JPG, WebP supported</small>
+    </div>
+    <div id="edit-indicator"></div>
+    <div id="canvas-wrap" style="display:none">
+      <canvas id="mainCanvas"></canvas>
+      <canvas id="overlay-canvas"></canvas>
+    </div>
+  </div>
+
+  <!-- RIGHT PANEL -->
+  <div id="right-panel">
+
+    <!-- FEATURE 1: Tool picker with icons -->
+    <div class="panel-section">
+      <h3>Active Tool</h3>
+      <div class="tool-picker">
+        <button class="tool-pick-btn active" id="pick-warp" onclick="setToolPick('warp')" title="Warp">
+          〜<span class="lbl">Warp</span>
+        </button>
+        <button class="tool-pick-btn" id="pick-twirl-cw" onclick="setToolPick('twirl-cw')" title="Twirl CW">
+          ↻<span class="lbl">CW</span>
+        </button>
+        <button class="tool-pick-btn" id="pick-twirl-ccw" onclick="setToolPick('twirl-ccw')" title="Twirl CCW">
+          ↺<span class="lbl">CCW</span>
+        </button>
+        <button class="tool-pick-btn" id="pick-bloat" onclick="setToolPick('bloat')" title="Bloat">
+          ⊕<span class="lbl">Bloat</span>
+        </button>
+        <button class="tool-pick-btn" id="pick-pucker" onclick="setToolPick('pucker')" title="Pucker">
+          ⊖<span class="lbl">Puck</span>
+        </button>
+      </div>
+    </div>
+
+    <!-- FEATURE 2: Brush params with numeric inputs -->
+    <div class="panel-section">
+      <h3>Brush Settings</h3>
+      <div class="param-row">
+        <label>Size</label>
+        <input type="range" id="brush-size" min="10" max="300" value="80"
+          oninput="syncParam('size', this.value, 'num-size')">
+        <input type="number" class="num-input" id="num-size" value="80" min="1" max="9999"
+          onchange="syncParamFromNum('size', this.value, 'brush-size', 10, 300)">
+      </div>
+      <div class="param-row">
+        <label>Pressure</label>
+        <input type="range" id="brush-pressure" min="1" max="100" value="50"
+          oninput="syncParam('pressure', this.value, 'num-pressure')">
+        <input type="number" class="num-input" id="num-pressure" value="50" min="1" max="9999"
+          onchange="syncParamFromNum('pressure', this.value, 'brush-pressure', 1, 100)">
+      </div>
+      <div class="param-row">
+        <label>Density</label>
+        <input type="range" id="brush-density" min="1" max="100" value="70"
+          oninput="syncParam('density', this.value, 'num-density')">
+        <input type="number" class="num-input" id="num-density" value="70" min="1" max="9999"
+          onchange="syncParamFromNum('density', this.value, 'brush-density', 1, 100)">
+      </div>
+      <div class="param-row">
+        <label>Rate</label>
+        <input type="range" id="brush-rate" min="1" max="100" value="60"
+          oninput="syncParam('rate', this.value, 'num-rate')">
+        <input type="number" class="num-input" id="num-rate" value="60" min="1" max="9999"
+          onchange="syncParamFromNum('rate', this.value, 'brush-rate', 1, 100)">
+      </div>
+    </div>
+
+    <div class="panel-section">
+      <h3>Mesh</h3>
+      <div class="param-row">
+        <label>Resolution</label>
+        <select id="mesh-res" onchange="changeMeshRes(this.value)">
+          <option value="20">20×20 (fast)</option>
+          <option value="30" selected>30×30</option>
+          <option value="50">50×50 (fine)</option>
+          <option value="80">80×80 (ultra)</option>
+        </select>
+      </div>
+      <div class="param-row" style="align-items:center">
+        <label>Show mesh</label>
+        <input type="checkbox" id="show-mesh" style="margin-left:4px;accent-color:var(--accent)">
+      </div>
+      <div class="btn-row">
+        <button onclick="resetMesh()">Reset Mesh</button>
+        <button class="danger" onclick="resetAll()">Reset All</button>
+      </div>
+    </div>
+
+    <!-- FEATURE 3: Keyframe list with curve button -->
+    <div class="panel-section">
+      <h3>Keyframes</h3>
+      <div id="kf-list"></div>
+      <div class="btn-row">
+        <button onclick="addKeyframe()" style="background:var(--accent);border-color:var(--accent);color:#fff">+ Add KF</button>
+        <button onclick="deleteKeyframe()" class="danger">Del KF</button>
+      </div>
+      <div class="btn-row" style="margin-top:4px">
+        <button id="btn-copy-kf" onclick="copyKeyframe()" title="Copy active keyframe mesh">⎘ Copy KF</button>
+        <button id="btn-paste-kf" onclick="pasteKeyframe()" title="Paste mesh into active keyframe" disabled>⎙ Paste KF</button>
+      </div>
+    </div>
+
+    <div class="panel-section">
+      <h3>Animation</h3>
+      <div class="param-row">
+        <label>Duration</label>
+        <input type="range" id="anim-duration" min="0.5" max="10" step="0.5" value="3"
+          oninput="updateDuration(this.value)">
+        <input type="number" class="num-input" id="num-duration" value="3" min="0.1" step="0.5"
+          onchange="updateDurationNum(this.value)">
+      </div>
+      <div class="param-row">
+        <label>FPS</label>
+        <select id="anim-fps" onchange="updateFps(this.value)">
+          <option value="12">12 fps</option>
+          <option value="24" selected>24 fps</option>
+          <option value="30">30 fps</option>
+          <option value="60">60 fps</option>
+        </select>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- TIMELINE -->
+<div id="timeline">
+  <div id="timeline-header">
+    <button class="tl-btn" onclick="gotoStart()" title="Go to start">⏮</button>
+    <button class="tl-btn" id="play-btn" onclick="togglePlay()" title="Play/Pause">▶</button>
+    <button class="tl-btn" onclick="gotoEnd()" title="Go to end">⏭</button>
+    <div class="sep" style="width:1px;height:18px;background:var(--border);margin:0 4px"></div>
+    <span>Timeline</span>
+    <div class="spacer"></div>
+    <span id="playhead-time">0.00s</span>
+  </div>
+  <div id="timeline-body">
+    <div id="timeline-ruler"></div>
+    <div id="keyframe-track">
+      <div id="playhead-line"></div>
+    </div>
+  </div>
+</div>
+
+<!-- CURVE EDITOR MODAL -->
+<div id="curve-modal">
+  <div id="curve-box">
+    <h2>✦ Curve Editor</h2>
+    <div class="sub" id="curve-kf-label">Keyframe 1 → 2 easing</div>
+    <canvas id="curve-canvas" width="316" height="200"></canvas>
+    <div class="curve-presets">
+      <button class="curve-preset-btn" onclick="applyCurvePreset('linear')">Linear</button>
+      <button class="curve-preset-btn" onclick="applyCurvePreset('ease')">Ease</button>
+      <button class="curve-preset-btn" onclick="applyCurvePreset('ease-in')">Ease In</button>
+      <button class="curve-preset-btn" onclick="applyCurvePreset('ease-out')">Ease Out</button>
+      <button class="curve-preset-btn" onclick="applyCurvePreset('bounce')">Bounce</button>
+      <button class="curve-preset-btn" onclick="applyCurvePreset('spring')">Spring</button>
+    </div>
+    <div class="curve-actions">
+      <button onclick="closeCurveModal()">Cancel</button>
+      <button class="primary" onclick="saveCurve()">Apply</button>
+    </div>
+  </div>
+</div>
+
+<!-- EXPORT MODAL -->
+<div id="export-modal">
+  <div id="export-box">
+    <h2>🎬 Export PNG Sequence → ZIP</h2>
+    <div class="row">
+      <label>Frames per second</label>
+      <select id="exp-fps">
+        <option value="12">12 fps</option>
+        <option value="24" selected>24 fps</option>
+        <option value="30">30 fps</option>
+      </select>
+    </div>
+    <div class="row">
+      <label>Scale</label>
+      <select id="exp-scale">
+        <option value="0.5">50% (faster)</option>
+        <option value="1" selected>100% (full res)</option>
+        <option value="2">200% (2×)</option>
+      </select>
+    </div>
+    <div id="exp-info" style="font-size:11px;color:var(--text2)"></div>
+    <div id="export-progress">
+      <div class="bar-bg"><div class="bar-fill" id="exp-bar"></div></div>
+      <div class="label" id="exp-label">Rendering frame 0…</div>
+    </div>
+    <div class="actions">
+      <button onclick="closeExportModal()">Cancel</button>
+      <button class="primary" onclick="startExport()">Export</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// ============================================================
+//  STATE
+// ============================================================
+let img = null;
+let imgW = 0, imgH = 0;
+let canvasW = 0, canvasH = 0;
+let scale = 1;
+
+let meshCols = 30, meshRows = 30;
+let meshDX = null, meshDY = null;
+
+let currentTool = 'warp';
+let brushParams = { size: 80, pressure: 50, density: 70, rate: 60 };
+let isPointerDown = false;
+let lastX = 0, lastY = 0;
+let cursorX = -999, cursorY = -999;
+
+// Pan / zoom viewport state
+let viewPanX = 0, viewPanY = 0;
+let viewZoom = 1;
+const VIEW_ZOOM_MIN = 0.1, VIEW_ZOOM_MAX = 8;
+
+// Keyframes: [{time, dx, dy, curve: {x1,y1,x2,y2} bezier control points}]
+let keyframes = [];
+let activeKfIndex = 0;
+
+let duration = 3;
+let fps = 24;
+let currentTime = 0;
+let playing = false;
+let lastRaf = null;
+
+let mainCanvas, mainCtx, overlayCanvas, overlayCtx;
+let offCtx = null;
+
+// ── Curve editor state ──
+let curveEditingKfIndex = -1;
+let curveCP = { x1: 0.42, y1: 0, x2: 0.58, y2: 1 };
+let curveDragging = null;
+let curveCanvas, curveCtx;
+
+// ── Undo / Redo ──
+// Each entry is a full snapshot of keyframes: [{time, dx, dy, curve}]
+const UNDO_LIMIT = 40;
+let undoStack = [];
+let redoStack = [];
+
+function snapshotForUndo() {
+  // Push a deep copy of current keyframes onto undo stack
+  const snap = keyframes.map(kf => ({
+    time: kf.time,
+    dx: new Float32Array(kf.dx),
+    dy: new Float32Array(kf.dy),
+    curve: { ...kf.curve }
+  }));
+  undoStack.push({ snap, activeKfIndex });
+  if (undoStack.length > UNDO_LIMIT) undoStack.shift();
+  redoStack = []; // any new action clears redo
+  updateUndoButtons();
+}
+
+function undo() {
+  if (!undoStack.length) return;
+  // Push current state to redo
+  redoStack.push({
+    snap: keyframes.map(kf => ({ time: kf.time, dx: new Float32Array(kf.dx), dy: new Float32Array(kf.dy), curve: { ...kf.curve } })),
+    activeKfIndex
+  });
+  const { snap, activeKfIndex: ai } = undoStack.pop();
+  restoreSnapshot(snap, ai);
+  updateUndoButtons();
+}
+
+function redo() {
+  if (!redoStack.length) return;
+  undoStack.push({
+    snap: keyframes.map(kf => ({ time: kf.time, dx: new Float32Array(kf.dx), dy: new Float32Array(kf.dy), curve: { ...kf.curve } })),
+    activeKfIndex
+  });
+  const { snap, activeKfIndex: ai } = redoStack.pop();
+  restoreSnapshot(snap, ai);
+  updateUndoButtons();
+}
+
+function restoreSnapshot(snap, ai) {
+  keyframes = snap.map(s => ({
+    time: s.time,
+    dx: new Float32Array(s.dx),
+    dy: new Float32Array(s.dy),
+    curve: { ...s.curve }
+  }));
+  activeKfIndex = Math.min(ai, keyframes.length - 1);
+  loadActiveMesh();
+  render(); updateKfUI(); renderTimeline(); updatePlayheadUI(); updateIndicator(false);
+}
+
+function updateUndoButtons() {
+  const u = document.getElementById('btn-undo');
+  const r = document.getElementById('btn-redo');
+  if (u) u.disabled = undoStack.length === 0;
+  if (r) r.disabled = redoStack.length === 0;
+}
+
+// ── KF Clipboard ──
+let kfClipboard = null; // {dx, dy, curve}
+
+// ============================================================
+//  INIT
+// ============================================================
+window.addEventListener('DOMContentLoaded', () => {
+  mainCanvas   = document.getElementById('mainCanvas');
+  mainCtx      = mainCanvas.getContext('2d');
+  overlayCanvas = document.getElementById('overlay-canvas');
+  overlayCtx   = overlayCanvas.getContext('2d');
+  curveCanvas  = document.getElementById('curve-canvas');
+  curveCtx     = curveCanvas.getContext('2d');
+
+  setupEvents();
+  renderTimeline();
+  renderOverlay();
+});
+
+// ============================================================
+//  FEATURE 1 – Tool picker (panel + sidebar sync)
+// ============================================================
+function setTool(t) {
+  currentTool = t;
+  document.querySelectorAll('.tool-btn').forEach(b => b.classList.remove('active'));
+  document.querySelectorAll('.tool-pick-btn').forEach(b => b.classList.remove('active'));
+  const sideBtn = document.getElementById('tool-' + t);
+  if (sideBtn) sideBtn.classList.add('active');
+  const pickBtn = document.getElementById('pick-' + t);
+  if (pickBtn) pickBtn.classList.add('active');
+}
+
+function setToolPick(t) { setTool(t); }
+
+// ============================================================
+//  FEATURE 2 – Dual slider + number input
+// ============================================================
+function syncParam(name, v, numId) {
+  brushParams[name] = parseFloat(v);
+  document.getElementById(numId).value = parseFloat(v);
+}
+
+function syncParamFromNum(name, v, sliderId, sliderMin, sliderMax) {
+  const val = parseFloat(v) || 0;
+  brushParams[name] = val;
+  // clamp slider (visual only – actual param is unclamped)
+  const clamped = Math.min(Math.max(val, sliderMin), sliderMax);
+  document.getElementById(sliderId).value = clamped;
+}
+
+// ============================================================
+//  FILE LOAD
+// ============================================================
+document.getElementById('fileInput').addEventListener('change', e => {
+  const file = e.target.files[0];
+  if (!file) return;
+  const url = URL.createObjectURL(file);
+  const i = new Image();
+  i.onload = () => {
+    img = i; imgW = i.naturalWidth; imgH = i.naturalHeight;
+    setupCanvas(); initMesh();
+    keyframes = [];
+    addKeyframe(true);
+    document.getElementById('drop-hint').style.display = 'none';
+    document.getElementById('canvas-wrap').style.display = 'block';
+    resetView();
+    document.getElementById('export-btn').disabled = false;
+    document.getElementById('save-btn').disabled = false;
+    document.getElementById('fps-info').textContent = `${imgW}×${imgH}`;
+    URL.revokeObjectURL(url);
+    render();
+    updateIndicator();
+  };
+  i.src = url;
+  e.target.value = '';
+});
+
+document.getElementById('canvas-area').addEventListener('dragover', e => e.preventDefault());
+document.getElementById('canvas-area').addEventListener('drop', e => {
+  e.preventDefault();
+  const file = e.dataTransfer.files[0];
+  if (file && file.type.startsWith('image/')) {
+    const dt = new DataTransfer(); dt.items.add(file);
+    document.getElementById('fileInput').files = dt.files;
+    document.getElementById('fileInput').dispatchEvent(new Event('change'));
+  }
+});
+
+function setupCanvas() {
+  const area = document.getElementById('canvas-area');
+  const maxW = area.clientWidth - 40, maxH = area.clientHeight - 40;
+  scale = Math.min(1, maxW / imgW, maxH / imgH);
+  canvasW = Math.round(imgW * scale); canvasH = Math.round(imgH * scale);
+  mainCanvas.width = canvasW; mainCanvas.height = canvasH;
+  overlayCanvas.width = canvasW; overlayCanvas.height = canvasH;
+  const off = document.createElement('canvas');
+  off.width = imgW; off.height = imgH;
+  offCtx = off.getContext('2d');
+  offCtx.drawImage(img, 0, 0);
+  srcPixels = null; // invalidate pixel cache
+}
+
+// ============================================================
+//  MESH
+// ============================================================
+function initMesh(fromRes) {
+  const res = parseInt(document.getElementById('mesh-res').value);
+  meshCols = res; meshRows = res;
+  const n = (meshCols + 1) * (meshRows + 1);
+  meshDX = new Float32Array(n); meshDY = new Float32Array(n);
+  if (fromRes && keyframes.length) {
+    keyframes.forEach(kf => { kf.dx = new Float32Array(n); kf.dy = new Float32Array(n); });
+    updateActiveKfDisplay();
+  }
+}
+
+function changeMeshRes(v) { if (!img) return; initMesh(true); render(); }
+function meshIdx(col, row) { return row * (meshCols + 1) + col; }
+
+// ============================================================
+//  RENDER — pixel-based displacement (no triangle seams)
+// ============================================================
+
+// Cached ImageData for the source image at canvas resolution
+let srcPixels = null;   // Uint8ClampedArray of source image at canvasW×canvasH
+let srcW = 0, srcH = 0;
+
+function buildSrcPixels() {
+  // Draw the original image scaled to canvas size, read pixels once
+  const tmp = document.createElement('canvas');
+  tmp.width = canvasW; tmp.height = canvasH;
+  const tctx = tmp.getContext('2d');
+  tctx.drawImage(offCtx.canvas, 0, 0, canvasW, canvasH);
+  srcPixels = tctx.getImageData(0, 0, canvasW, canvasH).data;
+  srcW = canvasW; srcH = canvasH;
+}
+
+function render() {
+  if (!img || !meshDX) return;
+  const ctx = mainCtx;
+
+  // Rebuild source pixel cache if canvas size changed
+  if (srcW !== canvasW || srcH !== canvasH || !srcPixels) buildSrcPixels();
+
+  // Output ImageData
+  const outData = ctx.createImageData(canvasW, canvasH);
+  const out = outData.data;
+  const src = srcPixels;
+
+  const cols = meshCols, rows = meshRows;
+  const vcW = canvasW / cols, vcH = canvasH / rows;
+
+  // For each output pixel, bilinearly interpolate the displacement from the mesh
+  // then sample the source image with bilinear filtering — no triangles, no seams.
+  for (let py = 0; py < canvasH; py++) {
+    // Which mesh row cell does this pixel fall in?
+    const gy = py / vcH;
+    const row = Math.min(Math.floor(gy), rows - 1);
+    const fy = gy - row; // fractional position within cell [0,1]
+
+    for (let px = 0; px < canvasW; px++) {
+      const gx = px / vcW;
+      const col = Math.min(Math.floor(gx), cols - 1);
+      const fx = gx - col;
+
+      // Four mesh vertex indices for this cell
+      const i00 = meshIdx(col,   row);
+      const i10 = meshIdx(col+1, row);
+      const i01 = meshIdx(col,   row+1);
+      const i11 = meshIdx(col+1, row+1);
+
+      // Bilinear interpolation of displacement
+      const w00 = (1-fx)*(1-fy), w10 = fx*(1-fy);
+      const w01 = (1-fx)*fy,     w11 = fx*fy;
+      const ddx = meshDX[i00]*w00 + meshDX[i10]*w10 + meshDX[i01]*w01 + meshDX[i11]*w11;
+      const ddy = meshDY[i00]*w00 + meshDY[i10]*w10 + meshDY[i01]*w01 + meshDY[i11]*w11;
+
+      // Source sample position (displacement is in image-space px, convert to canvas-space)
+      let sx = px - ddx * scale;
+      let sy = py - ddy * scale;
+
+      // Clamp to image bounds
+      sx = Math.max(0, Math.min(canvasW - 1.001, sx));
+      sy = Math.max(0, Math.min(canvasH - 1.001, sy));
+
+      // Bilinear sample from source
+      const x0 = sx | 0, y0 = sy | 0;
+      const x1 = x0 + 1 < canvasW ? x0 + 1 : x0;
+      const y1 = y0 + 1 < canvasH ? y0 + 1 : y0;
+      const bx = sx - x0, by = sy - y0;
+      const bx1 = 1 - bx, by1 = 1 - by;
+
+      const p00 = (y0 * canvasW + x0) * 4;
+      const p10 = (y0 * canvasW + x1) * 4;
+      const p01 = (y1 * canvasW + x0) * 4;
+      const p11 = (y1 * canvasW + x1) * 4;
+
+      const oi = (py * canvasW + px) * 4;
+      out[oi]   = src[p00]*bx1*by1 + src[p10]*bx*by1 + src[p01]*bx1*by + src[p11]*bx*by;
+      out[oi+1] = src[p00+1]*bx1*by1 + src[p10+1]*bx*by1 + src[p01+1]*bx1*by + src[p11+1]*bx*by;
+      out[oi+2] = src[p00+2]*bx1*by1 + src[p10+2]*bx*by1 + src[p01+2]*bx1*by + src[p11+2]*bx*by;
+      out[oi+3] = src[p00+3]*bx1*by1 + src[p10+3]*bx*by1 + src[p01+3]*bx1*by + src[p11+3]*bx*by;
+    }
+  }
+
+  ctx.putImageData(outData, 0, 0);
+
+  // Mesh overlay (unchanged)
+  if (document.getElementById('show-mesh').checked) {
+    const vcW2 = canvasW / cols, vcH2 = canvasH / rows;
+    ctx.strokeStyle = 'rgba(79,142,247,0.35)'; ctx.lineWidth = 0.5;
+    for (let row2 = 0; row2 <= rows; row2++) {
+      ctx.beginPath();
+      for (let col2 = 0; col2 <= cols; col2++) {
+        const i = meshIdx(col2, row2);
+        const x = col2 * vcW2 + meshDX[i]*scale, y = row2*vcH2 + meshDY[i]*scale;
+        col2 === 0 ? ctx.moveTo(x,y) : ctx.lineTo(x,y);
+      }
+      ctx.stroke();
+    }
+    for (let col2 = 0; col2 <= cols; col2++) {
+      ctx.beginPath();
+      for (let row2 = 0; row2 <= rows; row2++) {
+        const i = meshIdx(col2, row2);
+        const x = col2*vcW2 + meshDX[i]*scale, y = row2*vcH2 + meshDY[i]*scale;
+        row2 === 0 ? ctx.moveTo(x,y) : ctx.lineTo(x,y);
+      }
+      ctx.stroke();
+    }
+  }
+}
+
+function drawTexturedQuad(ctx, src, sx0, sy0, sx1, sy1, x00, y00, x10, y10, x01, y01, x11, y11, cellW, cellH) {
+  drawTriangle(ctx, src, sx0, sy0, sx1, sy0, sx0, sy1, x00, y00, x10, y10, x01, y01, cellW, cellH);
+  drawTriangle(ctx, src, sx1, sy0, sx1, sy1, sx0, sy1, x10, y10, x11, y11, x01, y01, cellW, cellH);
+}
+
+function drawTriangle(ctx, src, sx0,sy0,sx1,sy1,sx2,sy2, dx0,dy0,dx1,dy1,dx2,dy2, cw,ch) {
+  ctx.save();
+  ctx.beginPath(); ctx.moveTo(dx0,dy0); ctx.lineTo(dx1,dy1); ctx.lineTo(dx2,dy2); ctx.closePath(); ctx.clip();
+  const m = computeAffine(sx0,sy0,sx1,sy1,sx2,sy2, dx0,dy0,dx1,dy1,dx2,dy2);
+  if (m) { ctx.transform(m[0],m[1],m[2],m[3],m[4],m[5]); ctx.drawImage(src, 0, 0, src.width, src.height, 0, 0, src.width, src.height); }
+  ctx.restore();
+}
+
+function computeAffine(sx0,sy0,sx1,sy1,sx2,sy2, dx0,dy0,dx1,dy1,dx2,dy2) {
+  const dsx1=sx1-sx0, dsy1=sy1-sy0, dsx2=sx2-sx0, dsy2=sy2-sy0;
+  const ddx1=dx1-dx0, ddy1=dy1-dy0, ddx2=dx2-dx0, ddy2=dy2-dy0;
+  const det = dsx1*dsy2 - dsx2*dsy1;
+  if (Math.abs(det) < 0.0001) return null;
+  const a=(ddx1*dsy2-ddx2*dsy1)/det, b=(ddy1*dsy2-ddy2*dsy1)/det;
+  const c=(dsx1*ddx2-dsx2*ddx1)/det, d=(dsx1*ddy2-dsx2*ddy1)/det;
+  return [a,b,c,d, dx0-a*sx0-c*sy0, dy0-b*sx0-d*sy0];
+}
+
+// ============================================================
+//  OVERLAY
+// ============================================================
+function renderOverlay() {
+  const ctx = overlayCtx;
+  ctx.clearRect(0, 0, canvasW, canvasH);
+  if (!img) { requestAnimationFrame(renderOverlay); return; }
+  if (cursorX > 0 && cursorY > 0) {
+    const r = brushParams.size * scale / 2;
+    ctx.beginPath(); ctx.arc(cursorX, cursorY, r, 0, Math.PI*2);
+    ctx.strokeStyle = 'rgba(255,255,255,0.8)'; ctx.lineWidth = 1.5; ctx.setLineDash([4,3]); ctx.stroke(); ctx.setLineDash([]);
+    ctx.beginPath(); ctx.arc(cursorX, cursorY, 2, 0, Math.PI*2); ctx.fillStyle = 'rgba(255,255,255,0.9)'; ctx.fill();
+  }
+  requestAnimationFrame(renderOverlay);
+}
+
+// ============================================================
+//  BRUSH
+// ============================================================
+function applyBrush(cx, cy, prevX, prevY) {
+  if (!meshDX) return;
+  const bsize   = brushParams.size / 2;
+  const pressure = brushParams.pressure / 100;
+  const rate    = brushParams.rate / 100;
+  const dx = cx - prevX, dy = cy - prevY;
+
+  for (let row = 0; row <= meshRows; row++) {
+    for (let col = 0; col <= meshCols; col++) {
+      const vx = col * (imgW / meshCols), vy = row * (imgH / meshRows);
+      const dist = Math.hypot(cx - vx, cy - vy);
+      if (dist > bsize) continue;
+      const t = dist / bsize;
+      const falloff = Math.exp(-t * t * 3) * pressure * rate * 0.5;
+      const i = meshIdx(col, row);
+
+      switch (currentTool) {
+        case 'warp':
+          meshDX[i] += dx * falloff; meshDY[i] += dy * falloff; break;
+        case 'twirl-cw': {
+          // Rotate each mesh point around the brush center by an angle
+          // proportional to falloff — pure rotation, no translation drift.
+          const angle = falloff * 0.12;
+          // Vector from brush center to this vertex (in image space)
+          const rx = vx - cx + meshDX[i];
+          const ry = vy - cy + meshDY[i];
+          const cos = Math.cos(angle), sin = Math.sin(angle);
+          const rx2 = rx * cos - ry * sin;
+          const ry2 = rx * sin + ry * cos;
+          meshDX[i] += (rx2 - rx) * falloff;
+          meshDY[i] += (ry2 - ry) * falloff;
+          break;
+        }
+        case 'twirl-ccw': {
+          const angle = -falloff * 0.12;
+          const rx = vx - cx + meshDX[i];
+          const ry = vy - cy + meshDY[i];
+          const cos = Math.cos(angle), sin = Math.sin(angle);
+          const rx2 = rx * cos - ry * sin;
+          const ry2 = rx * sin + ry * cos;
+          meshDX[i] += (rx2 - rx) * falloff;
+          meshDY[i] += (ry2 - ry) * falloff;
+          break;
+        }
+        case 'bloat': {
+          const dir = Math.max(0.01, dist);
+          meshDX[i] += ((vx-cx)/dir)*falloff*3; meshDY[i] += ((vy-cy)/dir)*falloff*3; break;
+        }
+        case 'pucker': {
+          const dir = Math.max(0.01, dist);
+          meshDX[i] -= ((vx-cx)/dir)*falloff*3; meshDY[i] -= ((vy-cy)/dir)*falloff*3; break;
+        }
+        case 'smooth': {
+          let ax=0, ay=0, n=0;
+          for (let nr=-1; nr<=1; nr++) for (let nc=-1; nc<=1; nc++) {
+            const nr2=row+nr, nc2=col+nc;
+            if (nr2>=0&&nr2<=meshRows&&nc2>=0&&nc2<=meshCols) { ax+=meshDX[meshIdx(nc2,nr2)]; ay+=meshDY[meshIdx(nc2,nr2)]; n++; }
+          }
+          meshDX[i] += (ax/n - meshDX[i])*falloff*0.3;
+          meshDY[i] += (ay/n - meshDY[i])*falloff*0.3; break;
+        }
+        case 'reconstruct':
+          meshDX[i] *= 1 - falloff * 0.15; meshDY[i] *= 1 - falloff * 0.15; break;
+      }
+    }
+  }
+}
+
+// ============================================================
+//  POINTER EVENTS
+// ============================================================
+function setupEvents() {
+  mainCanvas.addEventListener('pointerdown', e => {
+    if (!img || playing) return;
+    isPointerDown = true;
+
+    // If we're in preview mode (between KFs), snap to nearest KF for editing
+    const activeTime = keyframes[activeKfIndex] ? keyframes[activeKfIndex].time : -1;
+    if (Math.abs(currentTime - activeTime) > 0.01 && keyframes.length > 0) {
+      let nearest = 0, nearestDist = Infinity;
+      keyframes.forEach((kf, i) => {
+        const d = Math.abs(kf.time - currentTime);
+        if (d < nearestDist) { nearestDist = d; nearest = i; }
+      });
+      activeKfIndex = nearest;
+      currentTime = keyframes[nearest].time;
+      loadActiveMesh();
+      updatePlayheadUI(); updateKfUI(); renderTimeline();
+    }
+
+    snapshotForUndo(); // snapshot BEFORE stroke begins
+    const [ix, iy] = canvasToImg(e.offsetX, e.offsetY);
+    lastX = ix; lastY = iy;
+    applyBrush(ix, iy, ix, iy);
+    saveActiveMesh();
+    render();
+    updateIndicator();
+  });
+  mainCanvas.addEventListener('pointermove', e => {
+    const [ix, iy] = canvasToImg(e.offsetX, e.offsetY);
+    cursorX = e.offsetX; cursorY = e.offsetY;
+    if (!isPointerDown) return;
+    applyBrush(ix, iy, lastX, lastY);
+    lastX = ix; lastY = iy;
+    saveActiveMesh(); // keep KF in sync while painting
+    render();
+  });
+  mainCanvas.addEventListener('pointerup', () => {
+    if (isPointerDown) { isPointerDown = false; saveActiveMesh(); }
+  });
+  mainCanvas.addEventListener('pointerleave', () => {
+    cursorX = -999; cursorY = -999;
+    if (isPointerDown) { isPointerDown = false; saveActiveMesh(); }
+  });
+
+  window.addEventListener('keydown', e => {
+    if (e.target.tagName === 'INPUT' || e.target.tagName === 'SELECT') return;
+    // Undo / Redo
+    if ((e.ctrlKey || e.metaKey) && e.key === 'z') { e.preventDefault(); undo(); return; }
+    if ((e.ctrlKey || e.metaKey) && (e.key === 'y' || (e.shiftKey && e.key === 'z'))) { e.preventDefault(); redo(); return; }
+    const map = { w:'warp', t:'twirl-cw', r:'twirl-ccw', b:'bloat', p:'pucker', s:'smooth', e:'reconstruct' };
+    if (map[e.key]) setTool(map[e.key]);
+    if (e.code === 'Space') { e.preventDefault(); togglePlay(); }
+  });
+
+  document.getElementById('timeline-ruler').addEventListener('click', seekTimeline);
+  document.getElementById('keyframe-track').addEventListener('click', seekTimeline);
+
+  // Curve canvas interactions
+  curveCanvas.addEventListener('pointerdown', curvePointerDown);
+  curveCanvas.addEventListener('pointermove', curvePointerMove);
+  window.addEventListener('pointerup', () => { curveDragging = null; });
+
+  // Pan & zoom via trackpad / mouse wheel
+  const canvasArea = document.getElementById('canvas-area');
+  canvasArea.addEventListener('wheel', e => {
+    e.preventDefault();
+
+    if (e.ctrlKey || e.metaKey) {
+      // ── ZOOM (pinch gesture or ctrl+scroll) ──
+      const zoomFactor = Math.exp(-e.deltaY * 0.01);
+      const newZoom = Math.min(VIEW_ZOOM_MAX, Math.max(VIEW_ZOOM_MIN, viewZoom * zoomFactor));
+
+      // Zoom toward the cursor position inside canvas-area
+      const areaRect = canvasArea.getBoundingClientRect();
+      const cx = e.clientX - areaRect.left - areaRect.width / 2;
+      const cy = e.clientY - areaRect.top - areaRect.height / 2;
+
+      // Adjust pan so the point under cursor stays fixed
+      const ratio = newZoom / viewZoom;
+      viewPanX = cx + ratio * (viewPanX - cx);
+      viewPanY = cy + ratio * (viewPanY - cy);
+      viewZoom = newZoom;
+    } else {
+      // ── PAN (two-finger scroll) ──
+      viewPanX -= e.deltaX;
+      viewPanY -= e.deltaY;
+    }
+
+    applyViewTransform();
+  }, { passive: false });
+
+  // Double-click canvas-area background to reset view
+  canvasArea.addEventListener('dblclick', e => {
+    if (e.target === canvasArea) resetView();
+  });
+}
+
+function canvasToImg(cx, cy) { return [cx / scale, cy / scale]; }
+
+// ============================================================
+//  VIEWPORT TRANSFORM (pan / zoom)
+// ============================================================
+function applyViewTransform() {
+  const wrap = document.getElementById('canvas-wrap');
+  wrap.style.transform = `translate(${viewPanX}px, ${viewPanY}px) scale(${viewZoom})`;
+  wrap.style.transformOrigin = '50% 50%';
+  const zoomEl = document.getElementById('zoom-info');
+  if (zoomEl) zoomEl.textContent = Math.round(viewZoom * 100) + '%';
+}
+
+function resetView() {
+  viewPanX = 0; viewPanY = 0; viewZoom = 1;
+  applyViewTransform();
+}
+
+// ============================================================
+//  FEATURE 3 – CURVE EDITOR
+// ============================================================
+// Default cubic bezier control points (CSS-style: x1,y1,x2,y2 in [0,1] space)
+const CURVE_PRESETS = {
+  linear:   { x1: 0,    y1: 0,    x2: 1,    y2: 1    },
+  ease:     { x1: 0.42, y1: 0,    x2: 0.58, y2: 1    },
+  'ease-in':  { x1: 0.42, y1: 0,  x2: 1,    y2: 1    },
+  'ease-out': { x1: 0,   y1: 0,   x2: 0.58, y2: 1    },
+  bounce:   { x1: 0.36, y1: 0,    x2: 0.66, y2: -0.56 },
+  spring:   { x1: 0.5,  y1: 1.5,  x2: 0.5,  y2: 1    },
+};
+
+function openCurveModal(kfIndex) {
+  curveEditingKfIndex = kfIndex;
+  const kf = keyframes[kfIndex];
+  const cp = kf.curve || { ...CURVE_PRESETS.ease };
+  curveCP = { ...cp };
+  document.getElementById('curve-kf-label').textContent =
+    `KF ${kfIndex + 1} → KF ${kfIndex + 2} easing`;
+  document.getElementById('curve-modal').classList.add('show');
+  drawCurve();
+}
+
+function closeCurveModal() {
+  document.getElementById('curve-modal').classList.remove('show');
+  curveEditingKfIndex = -1;
+}
+
+function saveCurve() {
+  if (curveEditingKfIndex >= 0 && keyframes[curveEditingKfIndex]) {
+    keyframes[curveEditingKfIndex].curve = { ...curveCP };
+  }
+  closeCurveModal();
+}
+
+function applyCurvePreset(name) {
+  curveCP = { ...CURVE_PRESETS[name] };
+  drawCurve();
+}
+
+// Map normalised [0,1] curve coords to canvas px
+const CURVE_PAD = 28;
+function curveToCanvasPx(nx, ny) {
+  const w = curveCanvas.width - CURVE_PAD * 2;
+  const h = curveCanvas.height - CURVE_PAD * 2;
+  return [CURVE_PAD + nx * w, CURVE_PAD + (1 - ny) * h];
+}
+function canvasPxToCurve(px, py) {
+  const w = curveCanvas.width - CURVE_PAD * 2;
+  const h = curveCanvas.height - CURVE_PAD * 2;
+  return [(px - CURVE_PAD) / w, 1 - (py - CURVE_PAD) / h];
+}
+
+function drawCurve() {
+  const ctx = curveCtx;
+  const W = curveCanvas.width, H = curveCanvas.height;
+  ctx.clearRect(0, 0, W, H);
+
+  // Background grid
+  ctx.strokeStyle = '#2a2a35'; ctx.lineWidth = 1;
+  for (let i = 0; i <= 4; i++) {
+    const [x0] = curveToCanvasPx(i / 4, 0), [, y0] = curveToCanvasPx(0, i / 4);
+    ctx.beginPath(); ctx.moveTo(x0, CURVE_PAD); ctx.lineTo(x0, H - CURVE_PAD); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(CURVE_PAD, y0); ctx.lineTo(W - CURVE_PAD, y0); ctx.stroke();
+  }
+
+  // Diagonal reference (linear)
+  const [lx0, ly0] = curveToCanvasPx(0, 0), [lx1, ly1] = curveToCanvasPx(1, 1);
+  ctx.strokeStyle = '#333340'; ctx.lineWidth = 1; ctx.setLineDash([4, 4]);
+  ctx.beginPath(); ctx.moveTo(lx0, ly0); ctx.lineTo(lx1, ly1); ctx.stroke(); ctx.setLineDash([]);
+
+  // Bezier curve
+  const [ax, ay] = curveToCanvasPx(0, 0);
+  const [bx, by] = curveToCanvasPx(curveCP.x1, curveCP.y1);
+  const [cx2, cy2] = curveToCanvasPx(curveCP.x2, curveCP.y2);
+  const [dx, dy] = curveToCanvasPx(1, 1);
+
+  ctx.beginPath(); ctx.moveTo(ax, ay); ctx.bezierCurveTo(bx, by, cx2, cy2, dx, dy);
+  ctx.strokeStyle = '#4f8ef7'; ctx.lineWidth = 2.5; ctx.stroke();
+
+  // Control lines
+  ctx.strokeStyle = 'rgba(255,255,255,0.2)'; ctx.lineWidth = 1;
+  ctx.beginPath(); ctx.moveTo(ax, ay); ctx.lineTo(bx, by); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(dx, dy); ctx.lineTo(cx2, cy2); ctx.stroke();
+
+  // Anchor points (fixed)
+  [[ax, ay], [dx, dy]].forEach(([x, y]) => {
+    ctx.beginPath(); ctx.arc(x, y, 4, 0, Math.PI * 2);
+    ctx.fillStyle = '#888890'; ctx.fill();
+  });
+
+  // Control points (draggable)
+  [[bx, by, 'p1'], [cx2, cy2, 'p2']].forEach(([x, y, id]) => {
+    ctx.beginPath(); ctx.arc(x, y, 6, 0, Math.PI * 2);
+    ctx.fillStyle = id === 'p1' ? '#7b5cf0' : '#3ecf70';
+    ctx.fill();
+    ctx.strokeStyle = '#fff'; ctx.lineWidth = 1.5; ctx.stroke();
+  });
+
+  // Labels
+  ctx.fillStyle = '#555560'; ctx.font = '9px monospace';
+  ctx.fillText('0', CURVE_PAD - 14, H - CURVE_PAD + 14);
+  ctx.fillText('1', W - CURVE_PAD - 2, H - CURVE_PAD + 14);
+  ctx.fillText('0', CURVE_PAD - 16, H - CURVE_PAD + 2);
+  ctx.fillText('1', CURVE_PAD - 16, CURVE_PAD + 4);
+}
+
+function curvePointerDown(e) {
+  const rect = curveCanvas.getBoundingClientRect();
+  const px = e.clientX - rect.left, py = e.clientY - rect.top;
+  const [p1x, p1y] = curveToCanvasPx(curveCP.x1, curveCP.y1);
+  const [p2x, p2y] = curveToCanvasPx(curveCP.x2, curveCP.y2);
+  if (Math.hypot(px - p1x, py - p1y) < 10) curveDragging = 'p1';
+  else if (Math.hypot(px - p2x, py - p2y) < 10) curveDragging = 'p2';
+}
+
+function curvePointerMove(e) {
+  if (!curveDragging) return;
+  const rect = curveCanvas.getBoundingClientRect();
+  const px = e.clientX - rect.left, py = e.clientY - rect.top;
+  let [nx, ny] = canvasPxToCurve(px, py);
+  nx = Math.max(0, Math.min(1, nx));
+  // y can go beyond [0,1] for bounce/spring effects
+  if (curveDragging === 'p1') { curveCP.x1 = nx; curveCP.y1 = ny; }
+  else                         { curveCP.x2 = nx; curveCP.y2 = ny; }
+  drawCurve();
+}
+
+// Evaluate cubic bezier (CSS timing function style) at time t
+function evalCubicBezier(t, x1, y1, x2, y2) {
+  // Numerically solve for t param given x, then evaluate y
+  // Binary search on x(t) to find param u where x(u)=t
+  let u = t; // initial guess
+  for (let iter = 0; iter < 12; iter++) {
+    const xu = 3*u*(1-u)*(1-u)*x1 + 3*u*u*(1-u)*x2 + u*u*u;
+    const dxu = 3*(1-u)*(1-u)*x1 + 6*u*(1-u)*(x2-x1) + 3*u*u*(1-x2);
+    if (Math.abs(dxu) < 1e-6) break;
+    u -= (xu - t) / dxu;
+    u = Math.max(0, Math.min(1, u));
+  }
+  return 3*u*(1-u)*(1-u)*y1 + 3*u*u*(1-u)*y2 + u*u*u;
+}
+
+// ============================================================
+//  KEYFRAMES
+// ============================================================
+function addKeyframe(isFirst = false) {
+  if (!img) return;
+  if (!isFirst) snapshotForUndo();
+  const n = (meshCols + 1) * (meshRows + 1);
+  let t;
+  if (isFirst || keyframes.length === 0) {
+    t = 0;
+  } else {
+    t = parseFloat(currentTime.toFixed(2));
+    if (keyframes.find(k => Math.abs(k.time - t) < 0.05))
+      t = Math.min(duration, parseFloat((t + 0.5).toFixed(2)));
+  }
+
+  const kf = {
+    time: Math.min(t, duration),
+    dx: new Float32Array(n),
+    dy: new Float32Array(n),
+    curve: { ...CURVE_PRESETS.ease }
+  };
+
+  if (isFirst) {
+    // First KF: snapshot whatever is currently on the canvas
+    if (meshDX) { kf.dx.set(meshDX); kf.dy.set(meshDY); }
+  } else {
+    // New KF: copy the interpolated state at the current time (like AE)
+    const { dx, dy } = getMeshAtTime(t);
+    kf.dx.set(dx); kf.dy.set(dy);
+  }
+
+  keyframes.push(kf);
+  keyframes.sort((a, b) => a.time - b.time);
+  activeKfIndex = keyframes.indexOf(kf);
+
+  // Load this KF so editing starts from its data
+  loadActiveMesh();
+  render();
+  updateKfUI();
+  renderTimeline();
+  updatePlayheadUI();
+  updateIndicator(false);
+}
+
+function deleteKeyframe() {
+  if (keyframes.length <= 1) return;
+  snapshotForUndo();
+  keyframes.splice(activeKfIndex, 1);
+  activeKfIndex = Math.min(activeKfIndex, keyframes.length - 1);
+  loadActiveMesh(); updateKfUI(); renderTimeline(); render();
+}
+
+function selectKeyframe(i) {
+  if (playing) return; // ignore during playback
+  activeKfIndex = i;
+  currentTime = keyframes[i].time;
+  loadActiveMesh();
+  updateKfUI(); renderTimeline(); render(); updatePlayheadUI(); updateIndicator(false);
+}
+
+function saveActiveMesh() {
+  // ONLY call this when the user has actually painted on the canvas.
+  // Never call during play, preview, or seek.
+  if (!keyframes[activeKfIndex] || !meshDX) return;
+  keyframes[activeKfIndex].dx.set(meshDX);
+  keyframes[activeKfIndex].dy.set(meshDY);
+}
+
+function loadActiveMesh() {
+  if (!keyframes[activeKfIndex] || !meshDX) return;
+  meshDX.set(keyframes[activeKfIndex].dx);
+  meshDY.set(keyframes[activeKfIndex].dy);
+}
+
+function copyKeyframe() {
+  if (!keyframes[activeKfIndex]) return;
+  const kf = keyframes[activeKfIndex];
+  kfClipboard = {
+    dx: new Float32Array(kf.dx),
+    dy: new Float32Array(kf.dy),
+    curve: { ...kf.curve }
+  };
+  const btn = document.getElementById('btn-paste-kf');
+  if (btn) btn.disabled = false;
+}
+
+function pasteKeyframe() {
+  if (!kfClipboard || !keyframes[activeKfIndex]) return;
+  snapshotForUndo();
+  const kf = keyframes[activeKfIndex];
+  kf.dx.set(kfClipboard.dx);
+  kf.dy.set(kfClipboard.dy);
+  kf.curve = { ...kfClipboard.curve };
+  loadActiveMesh();
+  render(); updateKfUI(); updateIndicator(false);
+}
+
+
+
+function updateIndicator(isPreview) {
+  const el = document.getElementById('edit-indicator');
+  if (!img || keyframes.length === 0) { el.classList.remove('show','preview'); return; }
+  el.classList.add('show');
+  if (isPreview) {
+    el.classList.add('preview');
+    el.textContent = `▶ Preview ${currentTime.toFixed(2)}s`;
+  } else {
+    el.classList.remove('preview');
+    el.textContent = `✏ Editing KF ${activeKfIndex + 1}  ·  ${keyframes[activeKfIndex].time.toFixed(2)}s`;
+  }
+}
+
+function updateKfUI() {
+  const list = document.getElementById('kf-list');
+  list.innerHTML = '';
+  keyframes.forEach((kf, i) => {
+    const row = document.createElement('div');
+    row.className = 'kf-row' + (i === activeKfIndex ? ' active' : '');
+    // Only show curve button for keyframes that have a next one
+    const hasCurve = i < keyframes.length - 1;
+    const cp = kf.curve || CURVE_PRESETS.ease;
+    row.innerHTML = `
+      <span style="font-size:11px;color:var(--orange)">◆</span>
+      <span style="font-size:11px;flex:1">KF ${i + 1}</span>
+      <span class="kf-time">${kf.time.toFixed(2)}s</span>
+      ${hasCurve ? `<button class="kf-curve-btn" title="Edit easing curve">∿</button>` : ''}
+    `;
+    row.querySelector('span.kf-time') && (row.onclick = () => selectKeyframe(i));
+    row.onclick = () => selectKeyframe(i);
+    if (hasCurve) {
+      const btn = row.querySelector('.kf-curve-btn');
+      btn.onclick = e => { e.stopPropagation(); openCurveModal(i); };
+    }
+    list.appendChild(row);
+  });
+}
+
+// ============================================================
+//  INTERPOLATION (with per-segment bezier curve)
+// ============================================================
+function getMeshAtTime(t) {
+  const n = meshDX ? meshDX.length : (meshCols + 1) * (meshRows + 1);
+  const dx = new Float32Array(n), dy = new Float32Array(n);
+  if (keyframes.length === 0) return { dx, dy };
+  if (keyframes.length === 1) { dx.set(keyframes[0].dx); dy.set(keyframes[0].dy); return { dx, dy }; }
+  if (t <= keyframes[0].time)  { dx.set(keyframes[0].dx); dy.set(keyframes[0].dy); return { dx, dy }; }
+  if (t >= keyframes[keyframes.length - 1].time) {
+    dx.set(keyframes[keyframes.length - 1].dx); dy.set(keyframes[keyframes.length - 1].dy); return { dx, dy };
+  }
+
+  let a = 0, b = 1;
+  for (let i = 0; i < keyframes.length - 1; i++) {
+    if (t >= keyframes[i].time && t <= keyframes[i+1].time) { a = i; b = i+1; break; }
+  }
+
+  const ka = keyframes[a], kb = keyframes[b];
+  const segLen = kb.time - ka.time;
+  let alpha = segLen < 0.0001 ? 0 : (t - ka.time) / segLen;
+
+  // Use the keyframe's own bezier curve
+  const cp = ka.curve || CURVE_PRESETS.ease;
+  alpha = evalCubicBezier(alpha, cp.x1, cp.y1, cp.x2, cp.y2);
+  alpha = Math.max(0, Math.min(1, alpha));
+
+  for (let i = 0; i < n; i++) {
+    dx[i] = ka.dx[i] + (kb.dx[i] - ka.dx[i]) * alpha;
+    dy[i] = ka.dy[i] + (kb.dy[i] - ka.dy[i]) * alpha;
+  }
+  return { dx, dy };
+}
+
+function applyMeshAtTime(t) {
+  const { dx, dy } = getMeshAtTime(t);
+  meshDX.set(dx); meshDY.set(dy);
+}
+
+// ============================================================
+//  TIMELINE / PLAYBACK
+// ============================================================
+function renderTimeline() {
+  const ruler = document.getElementById('timeline-ruler');
+  const track = document.getElementById('keyframe-track');
+  const w = ruler.clientWidth || 600;
+
+  ruler.innerHTML = '';
+  const steps = Math.floor(duration / 0.5);
+  for (let i = 0; i <= steps; i++) {
+    const t = i * 0.5;
+    const x = (t / duration) * 100;
+    const tick = document.createElement('div');
+    tick.style.cssText = `position:absolute;left:${x}%;top:0;height:100%;display:flex;flex-direction:column;align-items:center;`;
+    tick.innerHTML = `<div style="width:1px;height:${i%2===0?10:6}px;background:var(--border);margin-top:${i%2===0?4:6}px"></div>
+      ${i%2===0?`<span style="font-size:9px;color:var(--text2);margin-top:1px">${t.toFixed(1)}s</span>`:''}`;
+    ruler.appendChild(tick);
+  }
+
+  track.querySelectorAll('.keyframe-marker').forEach(m => m.remove());
+  keyframes.forEach((kf, i) => {
+    const x = (kf.time / duration) * 100;
+    const m = document.createElement('div');
+    m.className = 'keyframe-marker' + (i === activeKfIndex ? ' active' : '');
+    m.style.left = x + '%';
+    m.title = `KF ${i+1}: ${kf.time.toFixed(2)}s`;
+    m.onclick = e => { e.stopPropagation(); selectKeyframe(i); };
+    m.addEventListener('pointerdown', e => {
+      e.stopPropagation(); selectKeyframe(i);
+      const rect = track.getBoundingClientRect();
+      const onMove = ev => {
+        const px = Math.max(0, Math.min(1, (ev.clientX - rect.left) / rect.width));
+        keyframes[i].time = parseFloat((px * duration).toFixed(2));
+        keyframes.sort((a, b) => a.time - b.time);
+        activeKfIndex = Math.max(0, Math.min(keyframes.length-1, activeKfIndex));
+        renderTimeline(); updateKfUI(); updatePlayheadUI();
+      };
+      const onUp = () => { window.removeEventListener('pointermove', onMove); window.removeEventListener('pointerup', onUp); };
+      window.addEventListener('pointermove', onMove);
+      window.addEventListener('pointerup', onUp);
+    });
+    track.appendChild(m);
+  });
+
+  updatePlayheadLine();
+}
+
+function seekTimeline(e) {
+  const rect = e.currentTarget.getBoundingClientRect();
+  const px = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
+  currentTime = px * duration;
+
+  if (!playing) {
+    if (keyframes.length === 0) { updatePlayheadUI(); return; }
+
+    // Find the nearest KF to snap to (within 0.15s)
+    let nearest = 0, nearestDist = Infinity;
+    keyframes.forEach((kf, i) => {
+      const d = Math.abs(kf.time - currentTime);
+      if (d < nearestDist) { nearestDist = d; nearest = i; }
+    });
+
+    if (nearestDist < 0.15) {
+      // Landed on a KF: switch active KF, load its clean data
+      activeKfIndex = nearest;
+      currentTime = keyframes[nearest].time;
+      loadActiveMesh();
+      updateKfUI();
+      updateIndicator(false);
+    } else {
+      // Between KFs: show read-only interpolated preview, do NOT touch KF data
+      const { dx, dy } = getMeshAtTime(currentTime);
+      meshDX.set(dx); meshDY.set(dy);
+      updateIndicator(true);
+    }
+    render();
+  }
+  updatePlayheadUI();
+}
+
+function updatePlayheadUI() {
+  document.getElementById('playhead-time').textContent = currentTime.toFixed(2) + 's';
+  updatePlayheadLine();
+}
+
+function updatePlayheadLine() {
+  document.getElementById('playhead-line').style.left = ((currentTime / duration) * 100) + '%';
+}
+
+function togglePlay() {
+  if (!img || keyframes.length < 2) return;
+  playing = !playing;
+  document.getElementById('play-btn').textContent = playing ? '⏸' : '▶';
+  if (playing) {
+    // Do NOT save mesh here — KF data must never be touched during play
+    let last = null;
+    const loop = ts => {
+      if (!playing) return;
+      if (last !== null) {
+        const dt = (ts - last) / 1000;
+        currentTime += dt;
+        if (currentTime > duration) currentTime = 0;
+        // Read-only: compute interpolated mesh without touching KF data
+        const { dx, dy } = getMeshAtTime(currentTime);
+        meshDX.set(dx); meshDY.set(dy);
+        render(); updatePlayheadUI();
+      }
+      last = ts; lastRaf = requestAnimationFrame(loop);
+    };
+    lastRaf = requestAnimationFrame(loop);
+  } else {
+    if (lastRaf) cancelAnimationFrame(lastRaf);
+    // On stop: restore the active KF's mesh so the user can keep editing
+    loadActiveMesh();
+    render();
+  }
+}
+
+function gotoStart() {
+  stopPlay();
+  currentTime = 0;
+  // Snap to KF at t=0 if it exists
+  const kfAt0 = keyframes.findIndex(k => k.time < 0.01);
+  if (kfAt0 >= 0) { activeKfIndex = kfAt0; loadActiveMesh(); updateKfUI(); }
+  else { const { dx, dy } = getMeshAtTime(0); meshDX.set(dx); meshDY.set(dy); }
+  render(); updatePlayheadUI();
+}
+function gotoEnd() {
+  stopPlay();
+  currentTime = duration;
+  const last = keyframes.length - 1;
+  if (last >= 0 && Math.abs(keyframes[last].time - duration) < 0.01) {
+    activeKfIndex = last; loadActiveMesh(); updateKfUI();
+  } else { const { dx, dy } = getMeshAtTime(duration); meshDX.set(dx); meshDY.set(dy); }
+  render(); updatePlayheadUI();
+}
+function stopPlay() {
+  playing = false;
+  document.getElementById('play-btn').textContent = '▶';
+  if (lastRaf) cancelAnimationFrame(lastRaf);
+  // Restore active KF mesh so user can edit from a clean state
+  loadActiveMesh();
+  render();
+}
+
+function updateDuration(v) {
+  duration = parseFloat(v);
+  document.getElementById('num-duration').value = parseFloat(v);
+  renderTimeline();
+}
+function updateDurationNum(v) {
+  const val = parseFloat(v) || 3;
+  duration = val;
+  const slider = document.getElementById('anim-duration');
+  slider.value = Math.min(val, parseFloat(slider.max));
+  renderTimeline();
+}
+function updateFps(v) { fps = parseInt(v); }
+
+// ============================================================
+//  RESET
+// ============================================================
+function resetMesh() { if (!meshDX) return; meshDX.fill(0); meshDY.fill(0); saveActiveMesh(); render(); }
+function resetAll()  { if (!img) return; keyframes.forEach(kf => { kf.dx.fill(0); kf.dy.fill(0); }); loadActiveMesh(); render(); }
+
+// ============================================================
+//  SAVE / LOAD PROJECT
+// ============================================================
+function float32ToB64(arr) {
+  // Float32Array → base64 string via Uint8Array view
+  return btoa(String.fromCharCode(...new Uint8Array(arr.buffer)));
+}
+
+function b64ToFloat32(str) {
+  const bin = atob(str);
+  const buf = new ArrayBuffer(bin.length);
+  const u8 = new Uint8Array(buf);
+  for (let i = 0; i < bin.length; i++) u8[i] = bin.charCodeAt(i);
+  return new Float32Array(buf);
+}
+
+async function saveProject() {
+  if (!img) return;
+
+  // Embed the source image as base64 PNG
+  const imgCanvas = document.createElement('canvas');
+  imgCanvas.width = imgW; imgCanvas.height = imgH;
+  imgCanvas.getContext('2d').drawImage(img, 0, 0);
+  const imgB64 = imgCanvas.toDataURL('image/png');
+
+  const project = {
+    version: 1,
+    imgW, imgH,
+    meshCols, meshRows,
+    duration, fps,
+    activeKfIndex,
+    image: imgB64,
+    keyframes: keyframes.map(kf => ({
+      time: kf.time,
+      dx: float32ToB64(kf.dx),
+      dy: float32ToB64(kf.dy),
+      curve: { ...kf.curve }
+    }))
+  };
+
+  const json = JSON.stringify(project);
+  const blob = new Blob([json], { type: 'application/json' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'liquify-project.json';
+  a.click();
+  setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+}
+
+document.getElementById('projectInput').addEventListener('change', e => {
+  const file = e.target.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = ev => {
+    try {
+      loadProject(JSON.parse(ev.target.result));
+    } catch (err) {
+      alert('File non valido: ' + err.message);
+    }
+  };
+  reader.readAsText(file);
+  e.target.value = '';
+});
+
+function loadProject(p) {
+  if (!p || p.version !== 1) { alert('Progetto non compatibile.'); return; }
+
+  stopPlay();
+
+  // Restore image
+  const i = new Image();
+  i.onload = () => {
+    img = i; imgW = p.imgW; imgH = p.imgH;
+
+    // Restore mesh config
+    meshCols = p.meshCols; meshRows = p.meshRows;
+    duration = p.duration; fps = p.fps;
+
+    // Sync UI controls
+    document.getElementById('anim-duration').value = Math.min(duration, 10);
+    document.getElementById('num-duration').value = duration;
+    document.getElementById('anim-fps').value = fps;
+    const resEl = document.getElementById('mesh-res');
+    if (resEl) resEl.value = meshCols;
+
+    // Restore keyframes
+    keyframes = p.keyframes.map(kf => ({
+      time: kf.time,
+      dx: b64ToFloat32(kf.dx),
+      dy: b64ToFloat32(kf.dy),
+      curve: { ...kf.curve }
+    }));
+    activeKfIndex = Math.min(p.activeKfIndex, keyframes.length - 1);
+
+    // Setup canvas and mesh buffers (sizes must match)
+    setupCanvas();
+    const n = (meshCols + 1) * (meshRows + 1);
+    meshDX = new Float32Array(n);
+    meshDY = new Float32Array(n);
+    srcPixels = null;
+
+    loadActiveMesh();
+
+    // Show canvas
+    document.getElementById('drop-hint').style.display = 'none';
+    document.getElementById('canvas-wrap').style.display = 'block';
+    document.getElementById('export-btn').disabled = false;
+    document.getElementById('save-btn').disabled = false;
+    document.getElementById('fps-info').textContent = `${imgW}×${imgH}`;
+    resetView();
+
+    // Clear undo/redo (fresh project state)
+    undoStack = []; redoStack = []; updateUndoButtons();
+
+    render(); updateKfUI(); renderTimeline(); updatePlayheadUI(); updateIndicator(false);
+  };
+  i.src = p.image;
+}
+
+// ============================================================
+//  EXPORT
+// ============================================================
+function showExportModal() { if (!img || keyframes.length < 1) return; updateExpInfo(); document.getElementById('export-modal').classList.add('show'); }
+function closeExportModal() { document.getElementById('export-modal').classList.remove('show'); document.getElementById('export-progress').style.display = 'none'; }
+function updateExpInfo() {
+  const f = parseInt(document.getElementById('exp-fps').value);
+  const s = parseFloat(document.getElementById('exp-scale').value);
+  const totalFrames = Math.ceil(duration * f);
+  document.getElementById('exp-info').textContent = `${totalFrames} frames · ${Math.round(imgW*s)}×${Math.round(imgH*s)} px`;
+}
+setTimeout(() => { ['exp-fps','exp-scale'].forEach(id => { const el=document.getElementById(id); if(el) el.oninput=updateExpInfo; }); }, 100);
+
+async function startExport() {
+  const expFps2 = parseInt(document.getElementById('exp-fps').value);
+  const expScale2 = parseFloat(document.getElementById('exp-scale').value);
+  const totalFrames = Math.ceil(duration * expFps2);
+  const prog = document.getElementById('export-progress');
+  const bar = document.getElementById('exp-bar'), lbl = document.getElementById('exp-label');
+  prog.style.display = 'block';
+  const outW = Math.round(imgW * expScale2), outH = Math.round(imgH * expScale2);
+
+  // Render canvas with alpha support (willReadFrequently for performance)
+  const rc = document.createElement('canvas'); rc.width = outW; rc.height = outH;
+  const rctx = rc.getContext('2d', { willReadFrequently: true, alpha: true });
+
+  // Source canvas preserving alpha channel
+  const sc = document.createElement('canvas'); sc.width = imgW; sc.height = imgH;
+  const sctx = sc.getContext('2d', { alpha: true });
+  sctx.clearRect(0, 0, imgW, imgH);
+  sctx.drawImage(img, 0, 0);
+
+  const savedDX = new Float32Array(meshDX), savedDY = new Float32Array(meshDY), savedTime = currentTime;
+
+  const zip = new JSZip();
+  const folder = zip.folder('frames');
+
+  for (let fi = 0; fi < totalFrames; fi++) {
+    const t = (fi / (totalFrames - 1 || 1)) * duration;
+    const { dx, dy } = getMeshAtTime(t);
+
+    // Clear with full transparency before each frame
+    rctx.clearRect(0, 0, outW, outH);
+    renderMeshToCtx(rctx, sc, dx, dy, meshCols, meshRows, imgW, imgH, outW, outH);
+
+    bar.style.width = ((fi + 1) / totalFrames * 60) + '%';
+    lbl.textContent = `Rendering frame ${fi + 1} / ${totalFrames}…`;
+    await new Promise(r => setTimeout(r, 0));
+
+    // Export as PNG with alpha via Blob for full fidelity
+    const pngDataUrl = rc.toDataURL('image/png');
+    const base64 = pngDataUrl.split(',')[1];
+    const filename = `frame_${String(fi).padStart(4, '0')}.png`;
+    folder.file(filename, base64, { base64: true });
+  }
+
+  meshDX.set(savedDX); meshDY.set(savedDY); currentTime = savedTime; render();
+
+  lbl.textContent = `Creating ZIP archive…`;
+  bar.style.width = '80%';
+  await new Promise(r => setTimeout(r, 0));
+
+  const zipBlob = await zip.generateAsync(
+    { type: 'blob', compression: 'DEFLATE', compressionOptions: { level: 6 } },
+    (meta) => {
+      bar.style.width = (80 + meta.percent * 0.2) + '%';
+      lbl.textContent = `Compressing… ${Math.round(meta.percent)}%`;
+    }
+  );
+
+  bar.style.width = '100%';
+  lbl.textContent = `Downloading ZIP…`;
+
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(zipBlob);
+  a.download = 'liquify-frames.zip';
+  a.click();
+  setTimeout(() => URL.revokeObjectURL(a.href), 2000);
+  setTimeout(closeExportModal, 800);
+}
+
+function renderMeshToCtx(ctx, src, dx, dy, cols, rows, imgW, imgH, outW, outH) {
+  // Read source pixels at full output resolution — alpha: true preserves transparency
+  const tmp = document.createElement('canvas');
+  tmp.width = outW; tmp.height = outH;
+  const tctx = tmp.getContext('2d', { alpha: true, willReadFrequently: true });
+  tctx.clearRect(0, 0, outW, outH);
+  tctx.drawImage(src, 0, 0, outW, outH);
+  const srcPx = tctx.getImageData(0, 0, outW, outH).data;
+
+  const outData = ctx.createImageData(outW, outH);
+  const out = outData.data;
+  const s = outW / imgW; // scale factor image→output
+  const vcW = outW / cols, vcH = outH / rows;
+
+  for (let py = 0; py < outH; py++) {
+    const gy = py / vcH;
+    const row = Math.min(Math.floor(gy), rows - 1);
+    const fy = gy - row;
+    for (let px = 0; px < outW; px++) {
+      const gx = px / vcW;
+      const col = Math.min(Math.floor(gx), cols - 1);
+      const fx = gx - col;
+
+      const i00 = row*(cols+1)+col, i10 = row*(cols+1)+col+1;
+      const i01 = (row+1)*(cols+1)+col, i11 = (row+1)*(cols+1)+col+1;
+      const w00=(1-fx)*(1-fy), w10=fx*(1-fy), w01=(1-fx)*fy, w11=fx*fy;
+      const ddx = dx[i00]*w00+dx[i10]*w10+dx[i01]*w01+dx[i11]*w11;
+      const ddy = dy[i00]*w00+dy[i10]*w10+dy[i01]*w01+dy[i11]*w11;
+
+      let sx = Math.max(0, Math.min(outW-1.001, px - ddx*s));
+      let sy = Math.max(0, Math.min(outH-1.001, py - ddy*s));
+      const x0=sx|0, y0=sy|0;
+      const x1=x0+1<outW?x0+1:x0, y1=y0+1<outH?y0+1:y0;
+      const bx=sx-x0, by=sy-y0, bx1=1-bx, by1=1-by;
+      const p00=(y0*outW+x0)*4, p10=(y0*outW+x1)*4;
+      const p01=(y1*outW+x0)*4, p11=(y1*outW+x1)*4;
+      const oi=(py*outW+px)*4;
+      out[oi]  =srcPx[p00]*bx1*by1+srcPx[p10]*bx*by1+srcPx[p01]*bx1*by+srcPx[p11]*bx*by;
+      out[oi+1]=srcPx[p00+1]*bx1*by1+srcPx[p10+1]*bx*by1+srcPx[p01+1]*bx1*by+srcPx[p11+1]*bx*by;
+      out[oi+2]=srcPx[p00+2]*bx1*by1+srcPx[p10+2]*bx*by1+srcPx[p01+2]*bx1*by+srcPx[p11+2]*bx*by;
+      out[oi+3]=srcPx[p00+3]*bx1*by1+srcPx[p10+3]*bx*by1+srcPx[p01+3]*bx1*by+srcPx[p11+3]*bx*by;
+    }
+  }
+  ctx.putImageData(outData, 0, 0);
+}
+</script>
+</body>
+</html>
